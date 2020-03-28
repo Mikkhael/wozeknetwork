@@ -41,7 +41,7 @@ void runSingleTest(const std::string& host, const std::string& port, const std::
 		}
 		
 		std::cout << "Socket connected to: " << connectedEndpoint << '\n';
-		asio::steady_timer timer(ioContext, std::chrono::seconds(1));
+		asio::steady_timer timer(ioContext, std::chrono::seconds(20));
 		timer.wait();
 		
 		std::cout << "Writing... (size: " << messageToSend.size() << "\n";
@@ -60,7 +60,7 @@ void runSingleTest(const std::string& host, const std::string& port, const std::
 		receivedMessage.resize(1 << 8);
 		
 		std::cout << "Available to read: " << socket.available() << '\n';
-		size_t receivedBytes = asio::read(socket, asio::buffer(receivedMessage), err);
+		size_t receivedBytes = socket.read_some(asio::buffer(receivedMessage), err);
 		
 		if(err)
 		{

@@ -35,8 +35,15 @@
 		</Compiler>
 		<Linker>
 			<Add library="Ws2_32" />
+			<Add library="wsock32" />
 		</Linker>
+		<Unit filename="Everything.hpp" />
+		<Unit filename="TCP.hpp" />
+		<Unit filename="TCPWozekServer.cpp" />
+		<Unit filename="TCPWozekServer.hpp" />
+		<Unit filename="asioWrapper.hpp" />
 		<Unit filename="main.cpp" />
+		<Unit filename="test.cpp" />
 		<Extensions>
 			<code_completion />
 			<envvars />

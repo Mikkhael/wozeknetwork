@@ -35,8 +35,9 @@
 		</Compiler>
 		<Linker>
 			<Add library="Ws2_32" />
+			<Add library="wsock32" />
 		</Linker>
-		<Unit filename="main.cpp" />
+		<Unit filename="test.cpp" />
 		<Extensions>
 			<code_completion />
 			<envvars />
