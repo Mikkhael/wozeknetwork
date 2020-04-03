@@ -1,12 +1,31 @@
+#ifndef TESTRUN
+
 #include "Everything.hpp"
+
 
 
 int main()
 {
-	asio::io_context ioContext;
-	tcp::WozekServer server(ioContext);
-	server.start(8081);
-	
-	
-	ioContext.run();
+	try
+	{
+		
+		asio::io_context ioContext;
+		
+		db::Database database;
+		db::databaseManager.setDatabase(database);
+		
+		tcp::WozekServer server(ioContext);
+		server.start(8081);
+
+
+
+		ioContext.run();
+	}
+	catch(std::exception& e)
+	{
+		std::cerr << "Cought exception\n " << e.what();
+		std::cin.get();
+	}
 }
+
+#endif // TESTRUN

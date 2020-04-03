@@ -1,8 +1,11 @@
 #pragma once
 
 #include "TCP.hpp"
+#include "DatabaseManager.hpp"
 #include <type_traits>
 #include <chrono>
+#include <array>
+
 
 namespace tcp
 {
@@ -12,17 +15,26 @@ constexpr bool ShutdownOnDestruction = false;
 class WozekConnectionHandler
 	: public std::enable_shared_from_this<WozekConnectionHandler>
 {
+public:
 	using Socket = asiotcp::socket;
 	using Endpoint = asiotcp::endpoint;
+	enum class Type {None, Host, Controller};
+	
+private:
 	Socket socket;
 	Endpoint remoteEndpoint;
 	
+	Type type = Type::None;
+	db::IdType id = 0;
+	
 	bool isShutDown = false;
+	
 	
 	asio::steady_timer timeoutTimer;
 	std::chrono::seconds baseTimeoutDuration = std::chrono::seconds(15);
 	
-	std::string messageBuffer = std::string(1024, ' ');
+	static constexpr size_t bufferSize = 256;
+	std::array<char, bufferSize> buffer;
 		
 public:
 	WozekConnectionHandler(asio::io_context& ioContext)
@@ -41,31 +53,63 @@ public:
 		}
 	}
 	
+	/// Getters and Setters
+	
 	Socket& getSocket() {return socket;}
 	const Endpoint& getRemote() {return remoteEndpoint;}
+	bool isRunning() {return !isShutDown;}
 	
-	void operator()()
-	{
-		//std::cout << "New connection from " << socket.remote_endpoint() << '\n';
-		remoteEndpoint = socket.remote_endpoint();
-		
-		startTimeoutTimer();
-		receiveSomeMessage();
-	}
+	/// Type and Database
+	
+	Type getType() {return type;}
+	db::IdType getId() {return id;}
+	
+	
+	
+	void operator()();
 	
 private:
+	// Logging
+	
+	std::ostream& printPrefix(std::ostream& os)
+	{
+		os << "[ ";
+		if(socket.is_open())
+			os << socket.remote_endpoint() << ' ';
+		if(type != Type::None)
+			os << (type == Type::Host ? 'H' : 'C') << id << ' ';
+		return os << "] ";
+		
+	}
+	template <typename ...Ts>
+	void log(Ts ...args)
+	{
+		(printPrefix(std::clog) << ... << args) << '\n'; 
+	}
+	template <typename ...Ts>
+	void logError(Ts ...args)
+	{
+		(printPrefix(std::cerr) << "Error " << ... << args) << '\n'; 
+	}
 	
 	/// Functionality ///
 	
-
-	void receiveSomeMessage(size_t length = 0);
-	void sendMessage(size_t length = 0);
+	void awaitRequest();
+	void handleReceivedRequestId(char id);
+	
+	void sendTerminatingBytes(const char* bytes, size_t length);
+	void sendTerminatingBytes(size_t length) {sendTerminatingBytes(buffer.data(), length);}
+	
+	// Register host
+	
+	void receiveRegisterHostRequestData();
+	void tryRegisteringNewHost(db::Host::Header& header);
 	
 	/// Async ///
 
 	template<typename SuccessHandler>
 	auto asyncBranch(SuccessHandler successHandler) {
-		return asyncBranch(successHandler, abortErrorHandler);
+		return asyncBranch(successHandler, logAndAbortErrorHandler);
 	}
 	
 	template<typename SuccessHandler, typename ErrorHandler>
@@ -102,11 +146,25 @@ private:
 			//std::cerr << "Branch Passed\n";
 			if constexpr (std::is_member_function_pointer<SuccessHandler>::value)
 			{
-				((*me).*successHandler)( std::forward<decltype(args)>(args)... );
+				if constexpr(std::is_invocable<SuccessHandler, WozekConnectionHandler >::value)
+				{
+					((*me).*successHandler)();
+				}
+				else
+				{
+					((*me).*successHandler)( std::forward<decltype(args)>(args)... );
+				}
 			}
 			else
 			{
-				successHandler( std::forward<decltype(args)>(args)... );
+				if constexpr(std::is_invocable<SuccessHandler>::value)
+				{
+					successHandler();
+				}
+				else
+				{
+					successHandler( std::forward<decltype(args)>(args)... );
+				}
 			}
 			//std::cerr << "Branch Executed\n";
 		};
@@ -159,13 +217,15 @@ private:
 		timeoutTimer.cancel();
 		
 		socket.shutdown(Socket::shutdown_type::shutdown_both);
-		Error ignoredError;
-		socket.close(ignoredError);
 		
 		if constexpr (!ShutdownOnDestruction)
 		{
 			shutdownHandler();
 		}
+		
+		Error ignoredError;
+		socket.close(ignoredError);
+		
 	}
 	
 	/// Handlers ///
@@ -176,6 +236,7 @@ private:
 	
 	bool logAndAbortErrorHandler(const Error& err) {
 		std::cout << "Error in socket connected to " << getRemote() << ":\n " << err << '\n';
+		logError("during async operation:\n", err);
 		return true;
 	}
 

@@ -7,7 +7,11 @@
 #include <functional>
 #include <memory>
 
+
+#include "DatabaseManager.hpp"
+
 #include "TCP.hpp"
 #include "TCPWozekServer.hpp"
+
 
 

@@ -21,22 +21,9 @@ public:
 	{}
 };
 */
-using Error = boost::system::error_code;
-inline std::ostream& operator<<(std::ostream& os, const Error& error)
-{
-	return os << '[' << error.value() << "] " << error.message();
-}
 
-struct ConnectionErrorHandlerIgnore
-{
-	operator()(const Error& err)
-	{
-		// Ignore errors
-		return false;
-	}
-};
 
-template <typename ConnectionHandler, typename ConnectionErrorHandler = ConnectionErrorHandlerIgnore>
+template <typename ConnectionHandler, typename ConnectionErrorHandler>
 class GenericServer
 {
 	asio::io_context& ioContext;
