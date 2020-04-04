@@ -6,8 +6,25 @@ void testDatabase()
 {
 	using namespace db;
 	
+	asio::io_context ioContext;
+	
 	Database database;
 	databaseManager.setDatabase(database);
+	databaseManager.createStrand(ioContext);
+	
+	databaseManager.post([&database]
+	{
+		std::cout << "Inside1:\n";
+		std::cout << databaseManager.removeRecord<db::Database::Table::Host>(3) << '\n';
+		showDatabase(database);
+	});
+	databaseManager.post([&database]
+	{
+		std::cout << "Inside2:\n";
+		std::cout << databaseManager.removeRecord<db::Database::Table::Host>(3) << '\n';
+		showDatabase(database);
+	});
+	
 	
 	assert( databaseManager.addRecord<db::Database::Table::Host>(Host::Header{1, "Host nr 1"}) );
 	assert( databaseManager.addRecord<db::Database::Table::Host>(Host::Header{3, "Host nr 3"}) );
@@ -32,7 +49,9 @@ void testDatabase()
 	std::cout << '\n';
 	showDatabase(database);
 	
+	std::cin.get();
 	
+	ioContext.run();
 }
 
 int main()

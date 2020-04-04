@@ -56,6 +56,7 @@ public:
 	/// Getters and Setters
 	
 	Socket& getSocket() {return socket;}
+	auto getExecutor() {return socket.get_executor();}
 	const Endpoint& getRemote() {return remoteEndpoint;}
 	bool isRunning() {return !isShutDown;}
 	
@@ -107,6 +108,31 @@ private:
 	
 	/// Async ///
 
+	template<typename Handler>
+	auto asyncDatabaseStrand(Handler handler)
+	{
+		return db::databaseManager.post([me = shared_from_this(), handler]
+		{
+			handler();
+		});
+	}
+	
+	template<typename Handler>
+	auto asyncPost(Handler handler)
+	{
+		return asio::post(getExecutor(),[me = shared_from_this(), handler]
+		{
+			if constexpr (std::is_member_function_pointer<Handler>::value)
+			{
+				((*me).*handler)();
+			}
+			else
+			{
+				handler();
+			}
+		});
+	}
+	
 	template<typename SuccessHandler>
 	auto asyncBranch(SuccessHandler successHandler) {
 		return asyncBranch(successHandler, logAndAbortErrorHandler);

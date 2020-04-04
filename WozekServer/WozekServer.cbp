@@ -42,11 +42,13 @@
 		<Compiler>
 			<Add option="-Wall" />
 			<Add option="-std=c++1z" />
+			<Add option="-pthread" />
 			<Add directory="${BOOSTDIR}" />
 		</Compiler>
 		<Linker>
 			<Add library="Ws2_32" />
 			<Add library="wsock32" />
+			<Add library="pthreadgc" />
 		</Linker>
 		<Unit filename="DatabaseData.hpp" />
 		<Unit filename="DatabaseManager.cpp" />

@@ -86,33 +86,41 @@ void WozekConnectionHandler::receiveRegisterHostRequestData()
 void WozekConnectionHandler::tryRegisteringNewHost(db::Host::Header& header)
 {
 	log("Trying to register host: ", header.id, " , " ,header.name);
-	db::IdType id;
-	bool res;
-	if(header.id == 0)
+	asyncDatabaseStrand([&]
 	{
-		id = db::databaseManager.createAndAddRecord<db::Database::Table::Host>(header);
-		res = id != 0;
-	}
-	else
-	{
-		res = db::databaseManager.addRecord<db::Database::Table::Host>(header);
-	}
-	if(res)
-	{
-		db::databaseManager.get<db::Database::Table::Host>(id)->network.tcpConnection = shared_from_this();
-		buffer[0] = data::RegisterNewHost::Success;
-		std::memcpy(buffer.data() + 1, &id, sizeof(id));
-		log("Success registering host");
-		sendTerminatingBytes(1 + sizeof(id));
-	}
-	else
-	{
-		log("Failure registering host");
-		buffer[0] = data::RegisterNewHost::Failure;
-		sendTerminatingBytes(1);
-	}
-	
-	
+		bool res;
+		if(header.id == 0)
+		{
+			res = db::databaseManager.createAndAddRecord<db::Database::Table::Host>(header);
+		}
+		else
+		{
+			res = db::databaseManager.addRecord<db::Database::Table::Host>(header);
+		}
+		
+		if(res)
+		{
+			db::databaseManager.get<db::Database::Table::Host>(id)->network.tcpConnection = shared_from_this();
+		}
+		
+		asyncPost([this, res]{
+					
+			if(res)
+			{
+				log("Success registering host");
+				buffer[0] = data::RegisterNewHost::Success;
+				std::memcpy(buffer.data() + 1, &id, sizeof(id));
+				sendTerminatingBytes(1 + sizeof(id));
+			}
+			else
+			{
+				log("Failure registering host");
+				buffer[0] = data::RegisterNewHost::Failure;
+				sendTerminatingBytes(1);
+			}
+			
+		});
+	});	
 }
 
 

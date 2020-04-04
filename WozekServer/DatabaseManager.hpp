@@ -1,14 +1,18 @@
 #pragma once
 
+#include "asioWrapper.hpp"
 #include "DatabaseData.hpp"
 #include <tuple>
 #include <iostream>
+#include <optional>
 
 namespace db
 {
 
 class DatabaseManager
 {
+	std::optional<asio::io_context::strand> strand;
+	
 	Database* database = nullptr;
 	
 	template<Database::Table table>
@@ -40,6 +44,14 @@ public:
 		database = database_;
 	}
 	
+	void createStrand(asio::io_context& ioContext)
+	{
+		strand.emplace(ioContext);
+	}
+	
+	bool hasStrand() {return strand.has_value();}
+	asio::io_context::strand& getStrand() {return strand.value();}
+	
 	// Basic functions
 	
 	template<Database::Table table>
@@ -62,6 +74,15 @@ public:
 	// Specific functions
 	
 	bool connectControllerToHost(IdType, IdType);
+	
+	// Async
+	
+	template <typename Handler>
+	auto post(Handler handler)
+	{
+		return asio::post(getStrand(), handler);
+	}
+	
 };
 
 extern DatabaseManager databaseManager;
