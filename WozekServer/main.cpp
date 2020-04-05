@@ -5,13 +5,16 @@
 
 int main()
 {
-	const size_t numberOfAdditionalThreads = 4;
+	const size_t numberOfAdditionalThreads = 1;
 	
 	asio::io_context ioContext;
 	
 	db::Database database;
 	db::databaseManager.setDatabase(database);
 	db::databaseManager.createStrand(ioContext);
+	
+	assert( fileManager.setWorkingDirectory("C:/Users/bondg/Desktop/Dev/WozekNetwork/ServerFiles") );
+	fileManager.createStrand(ioContext);
 	
 	tcp::WozekServer server(ioContext);
 	server.start(8081);

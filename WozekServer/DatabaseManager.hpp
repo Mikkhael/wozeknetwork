@@ -30,27 +30,13 @@ public:
 	{
 	}
 	
-	bool hasDatabase()
-	{
-		return database != nullptr;
-	}
+	bool hasDatabase(){ return database != nullptr; }
+	void setDatabase(Database& database_){ setDatabase(&database_); }
+	void setDatabase(Database* database_){ database = database_; }
 	
-	void setDatabase(Database& database_)
-	{
-		setDatabase(&database_);
-	}
-	void setDatabase(Database* database_)
-	{
-		database = database_;
-	}
-	
-	void createStrand(asio::io_context& ioContext)
-	{
-		strand.emplace(ioContext);
-	}
-	
+	void createStrand(asio::io_context& ioContext){ strand.emplace(ioContext); }	
 	bool hasStrand() {return strand.has_value();}
-	asio::io_context::strand& getStrand() {return strand.value();}
+	auto& getStrand() {return strand.value();}
 	
 	// Basic functions
 	
@@ -72,14 +58,6 @@ public:
 	// Specific functions
 	
 	bool connectControllerToHost(IdType, IdType);
-	
-	// Async
-	
-	template <typename Handler>
-	auto post(Handler handler)
-	{
-		return asio::post(getStrand(), handler);
-	}
 	
 };
 

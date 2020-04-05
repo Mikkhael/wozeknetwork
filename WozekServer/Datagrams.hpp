@@ -39,9 +39,48 @@ namespace RegisterNewHost
 	constexpr char Success = 0x01;
 }
 
+namespace SegmentedTransfer
+{
+	constexpr char ErrorCode = 0x00;
+	constexpr char ContinueCode = 0x01;
+	constexpr char FinishedCode = 0x02;
+	
+	
+	struct SegmentAck
+	{
+		char code;
+	};
+	
+	struct SegmentHeader
+	{
+		size_t size;
+	};
+	
+}
+
+
+namespace UploadMap
+{
+	constexpr char Code = 0x02;
+	
+	struct RequestHeader
+	{
+		IdType hostId;
+		size_t totalMapSize;
+	};
+	struct ResponseHeader 
+	{
+		constexpr static char DenyAccessCode = 0x00;
+		constexpr static char InvalidSizeCode = 0x01;
+		constexpr static char AcceptCode = 0x02;
+		
+		char code;
+	};
+	
+}
+
 
 /// Data Structures ///
-
 
 namespace Host
 {

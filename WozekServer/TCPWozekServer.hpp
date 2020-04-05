@@ -2,6 +2,7 @@
 
 #include "TCP.hpp"
 #include "DatabaseManager.hpp"
+#include "fileManager.hpp"
 #include <type_traits>
 #include <chrono>
 #include <array>
@@ -31,9 +32,9 @@ private:
 	
 	
 	asio::steady_timer timeoutTimer;
-	std::chrono::seconds baseTimeoutDuration = std::chrono::seconds(15);
+	std::chrono::seconds baseTimeoutDuration = std::chrono::seconds(35);
 	
-	static constexpr size_t bufferSize = 256;
+	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer = {0};
 		
 public:
@@ -101,19 +102,34 @@ private:
 	void sendTerminatingBytes(const char* bytes, size_t length);
 	void sendTerminatingBytes(size_t length) {sendTerminatingBytes(buffer.data(), length);}
 	
+	// Segmented Transfer
+	
+	template<typename SegmentHandler, typename FinishedHandler>
+	void receiveSegmentHeader(size_t totalSize, SegmentHandler segmentHandler, FinishedHandler finishedHandler, size_t receivedBytes = 0);
+	
+	template<typename SegmentHandler, typename FinishedHandler>
+	void receiveAndHandleFullSegment(size_t totalSize, SegmentHandler segmentHandler, FinishedHandler finishedHandler, size_t receivedBytes, size_t bytesToLoad);
+	
 	// Register host
 	
 	void receiveRegisterHostRequestData();
 	void tryRegisteringNewHost(db::Host::Header& header);
 	
+	// Upload Map
+	
+	void handleUploadMapRequest();
+	
 	/// Async ///
-
-	template<typename Handler>
-	auto asyncDatabaseStrand(Handler handler)
+	
+	template< typename StrandManager, typename Handler>
+	auto asyncStrand(StrandManager& strandManager, Handler handler)
 	{
-		return db::databaseManager.post([me = shared_from_this(), handler]
+		return asio::post(strandManager.getStrand(), [me = shared_from_this(), handler]
 		{
-			handler();
+			if constexpr (std::is_member_function_pointer<Handler>::value)
+				((*me).*handler)();
+			else
+				handler();
 		});
 	}
 	
@@ -123,14 +139,36 @@ private:
 		return asio::post(getExecutor(),[me = shared_from_this(), handler]
 		{
 			if constexpr (std::is_member_function_pointer<Handler>::value)
-			{
 				((*me).*handler)();
-			}
 			else
-			{
 				handler();
-			}
 		});
+	}
+	
+	template<typename SuccessHandler>
+	void asyncRead(size_t size, SuccessHandler successHandler) {
+		asio::async_read(socket, asio::buffer(buffer, size), asyncBranch(successHandler));
+	}
+	template<typename SuccessHandler, typename ErrorHandler>
+	void asyncRead(size_t size, SuccessHandler successHandler, ErrorHandler errorHandler) {
+		asio::async_read(socket, asio::buffer(buffer, size), asyncBranch(successHandler, errorHandler));
+	}
+	
+	template<typename SuccessHandler>
+	void asyncWrite(size_t size, SuccessHandler successHandler) {
+		asio::async_write(socket, asio::buffer(buffer, size), asyncBranch(successHandler));
+	}
+	template<typename SuccessHandler, typename ErrorHandler>
+	void asyncWrite(size_t size, SuccessHandler successHandler, ErrorHandler errorHandler) {
+		asio::async_write(socket, asio::buffer(buffer, size), asyncBranch(successHandler, errorHandler));
+	}
+	template<typename SuccessHandler>
+	void asyncWrite(const char* data, size_t size, SuccessHandler successHandler) {
+		asio::async_write(socket, asio::buffer(data, size), asyncBranch(successHandler));
+	}
+	template<typename SuccessHandler, typename ErrorHandler>
+	void asyncWrite(const char* data, size_t size, SuccessHandler successHandler, ErrorHandler errorHandler) {
+		asio::async_write(socket, asio::buffer(data, size), asyncBranch(successHandler, errorHandler));
 	}
 	
 	template<typename SuccessHandler>
@@ -139,62 +177,7 @@ private:
 	}
 	
 	template<typename SuccessHandler, typename ErrorHandler>
-	auto asyncBranch(SuccessHandler successHandler, ErrorHandler errorHandler)
-	{
-		//std::cerr << "Posted Branch\n";
-		return [me = shared_from_this(), successHandler, errorHandler](const Error& err, auto&&... args)
-		{
-			if(me->isShutDown)
-			{
-				return;
-			}
-			
-			//std::cerr << "Branch Start\n";
-			if(err)
-			{
-				//std::cerr << "Branch Error\n";
-				bool abort = false;
-				if constexpr (std::is_member_function_pointer<ErrorHandler>::value)
-				{
-					abort = ((*me).*errorHandler)(err);
-				}
-				else
-				{
-					abort = errorHandler(err);
-				}
-				
-				if(abort)
-				{
-					me->shutConnection();
-					return;
-				}
-			}
-			//std::cerr << "Branch Passed\n";
-			if constexpr (std::is_member_function_pointer<SuccessHandler>::value)
-			{
-				if constexpr(std::is_invocable<SuccessHandler, WozekConnectionHandler >::value)
-				{
-					((*me).*successHandler)();
-				}
-				else
-				{
-					((*me).*successHandler)( std::forward<decltype(args)>(args)... );
-				}
-			}
-			else
-			{
-				if constexpr(std::is_invocable<SuccessHandler>::value)
-				{
-					successHandler();
-				}
-				else
-				{
-					successHandler( std::forward<decltype(args)>(args)... );
-				}
-			}
-			//std::cerr << "Branch Executed\n";
-		};
-	}
+	auto asyncBranch(SuccessHandler successHandler, ErrorHandler errorHandler);
 	
 	/// Timer ///
 	
@@ -213,8 +196,13 @@ private:
 	}
 	void startTimeoutTimer(const std::chrono::seconds& newDuration)
 	{
-		timeoutTimer.expires_after(std::chrono::seconds(5));
+		timeoutTimer.expires_after(newDuration);
 		activateTimeoutTimer();
+	}
+	
+	void cancelTimeoutTimer()
+	{
+		timeoutTimer.cancel();
 	}
 	
 	void activateTimeoutTimer()
@@ -222,13 +210,14 @@ private:
 		timeoutTimer.async_wait([me = shared_from_this()](const Error& err){me->handleTimeout(err);});
 	}
 	
-	void refreshTimeout()
+	void refreshTimeoutTimer()
 	{
-		refreshTimeout(baseTimeoutDuration);
+		refreshTimeoutTimer(baseTimeoutDuration);
 	}
-	void refreshTimeout(const std::chrono::seconds& newDuration)
+	void refreshTimeoutTimer(const std::chrono::seconds& newDuration)
 	{
-		if (!isShutDown && timeoutTimer.expires_after(std::chrono::seconds(5)) > 0)
+		// Dont refresh, if already expired
+		if (!isShutDown && timeoutTimer.expires_after(newDuration) > 0)
 		{
 			activateTimeoutTimer();
 		}
@@ -261,7 +250,6 @@ private:
 	}
 	
 	bool logAndAbortErrorHandler(const Error& err) {
-		std::cout << "Error in socket connected to " << getRemote() << ":\n " << err << '\n';
 		logError("during async operation:\n", err);
 		return true;
 	}
@@ -280,8 +268,126 @@ struct WozekConnectionErrorHandler
 	}
 };
 
+
+template<typename SuccessHandler, typename ErrorHandler>
+auto WozekConnectionHandler::asyncBranch(SuccessHandler successHandler, ErrorHandler errorHandler)
+{
+	//std::cerr << "Posted Branch\n";
+	return [me = shared_from_this(), successHandler, errorHandler](const Error& err, auto&&... args)
+	{
+		if(me->isShutDown)
+		{
+			return;
+		}
+		
+		//std::cerr << "Branch Start\n";
+		if(err)
+		{
+			//std::cerr << "Branch Error\n";
+			bool abort = false;
+			if constexpr (std::is_member_function_pointer<ErrorHandler>::value)
+			{
+				abort = ((*me).*errorHandler)(err);
+			}
+			else
+			{
+				abort = errorHandler(err);
+			}
+			
+			if(abort)
+			{
+				me->shutConnection();
+				return;
+			}
+		}
+		//std::cerr << "Branch Passed\n";
+		if constexpr (std::is_member_function_pointer<SuccessHandler>::value)
+		{
+			if constexpr(std::is_invocable<SuccessHandler, WozekConnectionHandler >::value)
+			{
+				((*me).*successHandler)();
+			}
+			else
+			{
+				((*me).*successHandler)( std::forward<decltype(args)>(args)... );
+			}
+		}
+		else
+		{
+			if constexpr(std::is_invocable<SuccessHandler>::value)
+			{
+				successHandler();
+			}
+			else
+			{
+				successHandler( std::forward<decltype(args)>(args)... );
+			}
+		}
+		//std::cerr << "Branch Executed\n";
+	};
+}
+
+
 using WozekServer = GenericServer<WozekConnectionHandler, WozekConnectionErrorHandler>;
 
+template <typename SegmentHandler, typename FinishedHandler>
+void WozekConnectionHandler::receiveSegmentHeader(size_t totalSize, SegmentHandler segmentHandler, FinishedHandler finishedHandler, size_t receivedBytes)
+{
+	if(receivedBytes == 0)
+	{
+		log("Preparing for segmented reciving...");
+	}
+	
+	startTimeoutTimer();
+	asyncRead(sizeof(data::SegmentedTransfer::SegmentHeader), [=]
+	{
+		cancelTimeoutTimer();
+		
+		data::SegmentedTransfer::SegmentHeader header;
+		std::memcpy(&header, buffer.data(), sizeof(header));
+		
+		log("Recived segment header with size ", header.size);
+		
+		receiveAndHandleFullSegment(totalSize, segmentHandler, finishedHandler, receivedBytes, header.size);
+	});
+}
+
+template <typename SegmentHandler, typename FinishedHandler>
+void WozekConnectionHandler::receiveAndHandleFullSegment(size_t totalSize, SegmentHandler segmentHandler, FinishedHandler finishedHandler, size_t receivedBytes, size_t bytesToLoad)
+{
+	if(bytesToLoad == 0)
+	{
+		if(totalSize == receivedBytes)
+		{
+			log("Loaded all segments");
+			buffer[0] = data::SegmentedTransfer::FinishedCode;
+			asyncWrite(1, finishedHandler);
+			return;
+		}
+		
+		log("Loaded full segment");
+		buffer[0] = data::SegmentedTransfer::ContinueCode;
+		asyncWrite(1, [=]{receiveSegmentHeader(totalSize, segmentHandler, finishedHandler, receivedBytes);} );
+		return;
+	}
+	
+	startTimeoutTimer();
+	asyncRead(bytesToLoad, [=](size_t length)
+	{
+		cancelTimeoutTimer();
+		log("Received subsegment with length: ", length);
+		if(bytesToLoad - length < 0)
+		{
+			throw -1;
+		}
+		
+		segmentHandler(buffer.data(), length, [=]
+		{
+			receiveAndHandleFullSegment(totalSize, segmentHandler, finishedHandler, receivedBytes + length, bytesToLoad - length);
+		});
+	});
+	
+}
 
 
 }
