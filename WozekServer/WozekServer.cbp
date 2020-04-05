@@ -30,7 +30,7 @@
 			</Target>
 			<Target title="Test">
 				<Option output="bin/Test/WozekServer" prefix_auto="1" extension_auto="1" />
-				<Option object_output="obj/Debug/" />
+				<Option object_output="objTest/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Compiler>
@@ -42,13 +42,11 @@
 		<Compiler>
 			<Add option="-Wall" />
 			<Add option="-std=c++1z" />
-			<Add option="-pthread" />
 			<Add directory="${BOOSTDIR}" />
 		</Compiler>
 		<Linker>
 			<Add library="Ws2_32" />
 			<Add library="wsock32" />
-			<Add library="pthreadgc" />
 		</Linker>
 		<Unit filename="DatabaseData.hpp" />
 		<Unit filename="DatabaseManager.cpp" />

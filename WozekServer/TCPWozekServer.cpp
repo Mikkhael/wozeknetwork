@@ -32,14 +32,14 @@ void WozekConnectionHandler::awaitRequest()
 
 void WozekConnectionHandler::sendTerminatingBytes(const char* bytes, size_t length)
 {
-	log("Finishing response with: ", std::string_view(bytes, std::min(length, size_t(20))), length > 20 ? "..." : "");
-	asio::async_write(socket, asio::buffer(bytes, length), asyncBranch(awaitRequest));
+	log("Finishing response (length: ", length, ")");
+	asio::async_write(socket, asio::buffer(bytes, length), asyncBranch(&WozekConnectionHandler::awaitRequest));
 }
 
 
 void WozekConnectionHandler::handleReceivedRequestId(char id)
 {
-	log("Handling request id: ", std::ios::hex, static_cast<int>(id));
+	log("Handling request id: ", static_cast<int>(id));
 	switch (id)
 	{
 		case data::HeartbeatCode : // heartbeat
@@ -86,12 +86,14 @@ void WozekConnectionHandler::receiveRegisterHostRequestData()
 void WozekConnectionHandler::tryRegisteringNewHost(db::Host::Header& header)
 {
 	log("Trying to register host: ", header.id, " , " ,header.name);
-	asyncDatabaseStrand([&]
+	asyncDatabaseStrand([header, this]
 	{
 		bool res;
+		db::IdType newId = header.id;
 		if(header.id == 0)
 		{
-			res = db::databaseManager.createAndAddRecord<db::Database::Table::Host>(header);
+			newId = db::databaseManager.createAndAddRecord<db::Database::Table::Host>(header);
+			res = newId != 0;
 		}
 		else
 		{
@@ -100,26 +102,24 @@ void WozekConnectionHandler::tryRegisteringNewHost(db::Host::Header& header)
 		
 		if(res)
 		{
-			db::databaseManager.get<db::Database::Table::Host>(id)->network.tcpConnection = shared_from_this();
-		}
-		
-		asyncPost([this, res]{
-					
-			if(res)
-			{
+			db::databaseManager.get<db::Database::Table::Host>(newId)->network.tcpConnection = shared_from_this();
+			id = newId;
+			
+			asyncPost([this]{
 				log("Success registering host");
 				buffer[0] = data::RegisterNewHost::Success;
 				std::memcpy(buffer.data() + 1, &id, sizeof(id));
 				sendTerminatingBytes(1 + sizeof(id));
-			}
-			else
-			{
+			});
+		}
+		else
+		{
+			asyncPost([this, res]{
 				log("Failure registering host");
 				buffer[0] = data::RegisterNewHost::Failure;
 				sendTerminatingBytes(1);
-			}
-			
-		});
+			});
+		}		
 	});	
 }
 

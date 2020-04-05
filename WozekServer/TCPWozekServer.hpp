@@ -34,7 +34,7 @@ private:
 	std::chrono::seconds baseTimeoutDuration = std::chrono::seconds(15);
 	
 	static constexpr size_t bufferSize = 256;
-	std::array<char, bufferSize> buffer;
+	std::array<char, bufferSize> buffer = {0};
 		
 public:
 	WozekConnectionHandler(asio::io_context& ioContext)
@@ -90,7 +90,7 @@ private:
 	template <typename ...Ts>
 	void logError(Ts ...args)
 	{
-		(printPrefix(std::cerr) << "Error " << ... << args) << '\n'; 
+		((printPrefix(std::cerr) << "Error ") << ... << args) << '\n'; 
 	}
 	
 	/// Functionality ///
@@ -135,7 +135,7 @@ private:
 	
 	template<typename SuccessHandler>
 	auto asyncBranch(SuccessHandler successHandler) {
-		return asyncBranch(successHandler, logAndAbortErrorHandler);
+		return asyncBranch(successHandler, &WozekConnectionHandler::logAndAbortErrorHandler);
 	}
 	
 	template<typename SuccessHandler, typename ErrorHandler>
@@ -273,7 +273,7 @@ private:
 
 struct WozekConnectionErrorHandler
 {
-	operator()(const Error& err)
+	bool operator()(const Error& err)
 	{
 		std::cout << "Error occured while connecting:\n" << err << '\n';
 		return false;

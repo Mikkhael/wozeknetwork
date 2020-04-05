@@ -65,7 +65,7 @@ struct Database
 	}
 	
 	template <Table table>
-	using tableType = typename std::remove_reference< decltype(((Database*)nullptr)->get<table>()) >::type;
+	using tableType = typename std::remove_reference< typename std::invoke_result<decltype(&Database::get<table>), Database>::type >::type;
 	template <Table table>
 	using recordType = typename tableType<table>::mapped_type;
 	

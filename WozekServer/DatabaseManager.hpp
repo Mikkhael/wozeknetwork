@@ -67,9 +67,7 @@ public:
 	bool addRecord(const typename Database::recordType<table>::Header& header);
 	
 	template<Database::Table table>
-	bool createAndAddRecord(typename Database::recordType<table>::Header& header);
-	template<Database::Table table>
-	bool createAndAddRecord(const typename Database::recordType<table>::Header& header);
+	IdType createAndAddRecord(const typename Database::recordType<table>::Header& header);
 	
 	// Specific functions
 	
@@ -127,16 +125,12 @@ bool DatabaseManager::addRecord(const typename Database::recordType<table>::Head
 }
 
 template<Database::Table table>
-bool DatabaseManager::createAndAddRecord(typename Database::recordType<table>::Header& header)
+IdType DatabaseManager::createAndAddRecord(const typename Database::recordType<table>::Header& header)
 {
-	header.id = getNextFreeId<table>();
-	return addRecord<table>(header);
-}
-template<Database::Table table>
-bool DatabaseManager::createAndAddRecord(const typename Database::recordType<table>::Header& header)
-{
-	auto newHeader = header;
-	return createAndAddRecord<table>(newHeader);
+	auto id = getNextFreeId<table>();
+	auto& h = database->get<table>()[id].header;
+	h = header;
+	return h.id = id;
 }
 
 template<Database::Table table>

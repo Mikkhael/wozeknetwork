@@ -31,6 +31,11 @@ void testDatabase()
 	assert( databaseManager.addRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2"}) );
 	assert( !databaseManager.addRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2"}) );
 	assert( databaseManager.createAndAddRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2 new"}) );
+	assert( databaseManager.createAndAddRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2 new"}) );
+	assert( databaseManager.createAndAddRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2 new"}) );
+	assert( databaseManager.createAndAddRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2 new"}) );
+	assert( databaseManager.createAndAddRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2 new"}) );
+	assert( databaseManager.createAndAddRecord<db::Database::Table::Host>(Host::Header{2, "Host nr 2 new"}) );
 	assert( !databaseManager.removeRecord<db::Database::Table::Host>(2424) );
 	
 	std::cout << '\n';
