@@ -49,9 +49,6 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 		}
 		case data::RegisterNewHost::Code : // Register as new host
 		{
-			if(type != Type::None) // If connection already has a type, disallow registration
-				return;
-				
 			receiveRegisterHostRequestData();
 			break;
 		}
@@ -106,10 +103,14 @@ void WozekConnectionHandler::tryRegisteringNewHost(db::Host::Header& header)
 			res = db::databaseManager.addRecord<db::Database::Table::Host>(header);
 		}
 		
+		if(type)
+			res = false;
+		
 		if(res)
 		{
 			db::databaseManager.get<db::Database::Table::Host>(newId)->network.tcpConnection = shared_from_this();
 			id = newId;
+			type = Type::Host;
 			
 			asyncPost([this]{
 				log("Success registering host");
@@ -152,6 +153,7 @@ void WozekConnectionHandler::handleUploadMapRequest()
 		else
 		{
 			log("Preparing for transfer with size: ", header.totalMapSize );
+			
 			asyncStrand(fileManager, [=]
 			{
 				fileManager.deleteMapFile(id);
@@ -161,10 +163,15 @@ void WozekConnectionHandler::handleUploadMapRequest()
 					receiveSegmentHeader(header.totalMapSize,
 					[=](const char* data, size_t length, auto handler)
 					{
-						log("Writing " , length, " bytes into map file");
 						asyncStrand(fileManager, [=]
 						{
-							fileManager.appendBufferToFile(fileManager.getPathToMapFile(id), data, length);
+							auto path = fileManager.getPathToMapFile(id);
+							log("Writing " , length, " bytes into map file with path ", path);
+							if(!fileManager.appendBufferToFile(path, data, length))
+							{
+								logError("File writing failed");
+								return;
+							}
 							log("Writing complete");
 							asyncPost(handler);
 						});

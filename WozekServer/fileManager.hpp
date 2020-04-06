@@ -15,6 +15,11 @@ class FileManager
 	
 	std::optional<asio::io_context::strand> strand;
 	
+	void initDirectories()
+	{
+		fs::create_directory(workingDirectory / mapFilesFolder);
+	}
+	
 public:
 	
 	bool writeBufferToFile(const fs::path& path, std::ios::openmode mode, const char* buffer, size_t length)
@@ -42,7 +47,14 @@ public:
 	auto& getStrand() {return strand.value();}
 	
 	bool hasWorkingDirectory() {return workingDirectory.empty();}
-	bool setWorkingDirectory(const fs::path& path) {if(!fs::is_directory(path)) return false; workingDirectory = path; return true;}
+	bool setWorkingDirectory(const fs::path& path) {
+		if(!fs::is_directory(path)) 
+			return false;
+		workingDirectory = path;
+		workingDirectory.make_preferred();
+		initDirectories();
+		return true;
+	}
 	
 	// MapFiles
 	
@@ -50,7 +62,7 @@ public:
 	{
 		fs::path res = workingDirectory;
 		res /= mapFilesFolder;
-		res /= "map-";
+		res /= "map_";
 		res += std::to_string(id);
 		return res;
 	}

@@ -30,7 +30,7 @@
 			</Target>
 			<Target title="Test">
 				<Option output="bin/Test/WozekServer" prefix_auto="1" extension_auto="1" />
-				<Option object_output="objTest/" />
+				<Option object_output="obj/Test/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Compiler>
@@ -57,6 +57,8 @@
 		<Unit filename="TCPWozekServer.cpp" />
 		<Unit filename="TCPWozekServer.hpp" />
 		<Unit filename="asioWrapper.hpp" />
+		<Unit filename="fileManager.cpp" />
+		<Unit filename="fileManager.hpp" />
 		<Unit filename="main.cpp" />
 		<Unit filename="test.cpp" />
 		<Extensions>

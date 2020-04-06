@@ -36,6 +36,9 @@ private:
 	
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer = {0};
+	
+	std::vector<char> bigBuffer;
+	size_t bigBufferTop = 0;
 		
 public:
 	WozekConnectionHandler(asio::io_context& ioContext)
