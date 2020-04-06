@@ -40,6 +40,27 @@ public:
 		return writeBufferToFile(path, std::ios::app, buffer, length);
 	}
 	
+	bool writeFileToBuffer(const fs::path& path, size_t offset, char* buffer, size_t length)
+	{
+		std::ifstream file(path, std::ios::binary);
+		if(!file.is_open())
+		{
+			return false;
+		}
+		file.seekg(0, std::ios::end);
+		size_t end = file.tellg();
+		file.seekg(offset, std::ios::beg);
+		
+		if((size_t)file.tellg() > end || end - (size_t)file.tellg() < length)
+		{
+			return false;
+		}
+		
+		file.read(buffer, length);
+		file.close();
+		return true;
+	}
+	
 	FileManager() {}
 	
 	bool hasStrand() {return strand.has_value();}

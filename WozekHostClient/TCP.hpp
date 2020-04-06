@@ -6,6 +6,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -132,6 +133,10 @@ public:
 	// Upload Map File
 	
 	bool uploadMapFile(const fs::path& mapFilePath, size_t maxSegmentLength = 0);
+	
+	// Download Map File
+	
+	bool downloadMapFile(data::IdType id, const fs::path& mapFilePath);
 	
 };
 

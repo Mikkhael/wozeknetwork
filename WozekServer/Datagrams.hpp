@@ -79,6 +79,26 @@ namespace UploadMap
 	
 }
 
+namespace DownloadMap
+{
+	constexpr char Code = 0x03;
+	
+	struct RequestHeader
+	{
+		IdType hostId;
+	};
+	struct ResponseHeader 
+	{
+		constexpr static char DenyAccessCode = 0x00;
+		constexpr static char InvalidSizeCode = 0x01;
+		constexpr static char AcceptCode = 0x02;
+		
+		char code;
+		size_t totalMapSize;
+	};
+	
+}
+
 
 /// Data Structures ///
 

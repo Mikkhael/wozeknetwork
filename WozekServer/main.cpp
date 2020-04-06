@@ -3,9 +3,30 @@
 #include "Everything.hpp"
 
 
-int main()
+int main(int argc, char** argv)
 {
-	const size_t numberOfAdditionalThreads = 1;
+	
+	#ifdef RELEASE
+	
+	if(argc < 4)
+	{
+		std::cout << "Use the parameters [port] [threads] [directory]";
+		return 0;
+	}
+	
+	short port = std::atoi(argv[1]);
+	short threads = std::atoi(argv[2]);
+	std::string dir = argv[3];
+	
+	#else
+	
+	short port = 8081;
+	short threads = 3;
+	std::string dir = "files";
+	
+	#endif // RELEASE
+	
+	const size_t numberOfAdditionalThreads = threads;
 	
 	asio::io_context ioContext;
 	
@@ -13,11 +34,11 @@ int main()
 	db::databaseManager.setDatabase(database);
 	db::databaseManager.createStrand(ioContext);
 	
-	assert( fileManager.setWorkingDirectory("C:/Users/bondg/Desktop/Dev/WozekNetwork/ServerFiles") );
+	assert( fileManager.setWorkingDirectory(dir) );
 	fileManager.createStrand(ioContext);
 	
 	tcp::WozekServer server(ioContext);
-	server.start(8081);
+	server.start(port);
 
 	std::vector<std::thread> threadPool;
 	threadPool.reserve(numberOfAdditionalThreads);

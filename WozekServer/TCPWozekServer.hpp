@@ -30,16 +30,41 @@ private:
 	
 	bool isShutDown = false;
 	
-	
 	asio::steady_timer timeoutTimer;
 	std::chrono::seconds baseTimeoutDuration = std::chrono::seconds(35);
 	
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer = {0};
 	
+	/// Big buffer ///
+	
+	size_t remainingBytesToSend = 0;
+	size_t maxBigBufferSize = 1024*1024*4;
 	std::vector<char> bigBuffer;
 	size_t bigBufferTop = 0;
-		
+	
+	void resetBigBufferTop()
+	{
+		bigBufferTop = 0;
+	}
+	
+	void initBigBuffer(size_t size = 0)
+	{
+		bigBuffer.resize(size);
+		bigBufferTop = 0;
+	}
+	
+	size_t getRemainingBigBufferSize()
+	{
+		return bigBuffer.size() - bigBufferTop;
+	}
+	
+	void writeToBigBuffer(const char* buffer, size_t length)
+	{
+		std::memcpy(bigBuffer.data() + bigBufferTop, buffer, length);
+		bigBufferTop += length;
+	}
+	
 public:
 	WozekConnectionHandler(asio::io_context& ioContext)
 		: socket(ioContext), timeoutTimer(ioContext)
@@ -99,10 +124,10 @@ private:
 	
 	/// Functionality ///
 	
-	void awaitRequest();
+	void awaitRequest(bool silent = false);
 	void handleReceivedRequestId(char id);
 	
-	void sendTerminatingBytes(const char* bytes, size_t length);
+	void sendTerminatingBytes(const void* bytes, size_t length);
 	void sendTerminatingBytes(size_t length) {sendTerminatingBytes(buffer.data(), length);}
 	
 	// Segmented Transfer
@@ -113,6 +138,9 @@ private:
 	template<typename SegmentHandler, typename FinishedHandler>
 	void receiveAndHandleFullSegment(size_t totalSize, SegmentHandler segmentHandler, FinishedHandler finishedHandler, size_t receivedBytes, size_t bytesToLoad);
 	
+	template <typename BufferEndHandler, typename AckHandler>
+	void sendSegmentedBuffers(size_t segmentLength, size_t bufferLength, char* buffer, BufferEndHandler bufferEndedHandler, AckHandler ackHandler, size_t bytesSent = 0);
+	
 	// Register host
 	
 	void receiveRegisterHostRequestData();
@@ -121,6 +149,10 @@ private:
 	// Upload Map
 	
 	void handleUploadMapRequest();
+	
+	// Download Map
+	
+	void handleDownloadMapRequest();
 	
 	/// Async ///
 	
@@ -166,11 +198,11 @@ private:
 		asio::async_write(socket, asio::buffer(buffer, size), asyncBranch(successHandler, errorHandler));
 	}
 	template<typename SuccessHandler>
-	void asyncWrite(const char* data, size_t size, SuccessHandler successHandler) {
+	void asyncWrite(const void* data, size_t size, SuccessHandler successHandler) {
 		asio::async_write(socket, asio::buffer(data, size), asyncBranch(successHandler));
 	}
 	template<typename SuccessHandler, typename ErrorHandler>
-	void asyncWrite(const char* data, size_t size, SuccessHandler successHandler, ErrorHandler errorHandler) {
+	void asyncWrite(const void* data, size_t size, SuccessHandler successHandler, ErrorHandler errorHandler) {
 		asio::async_write(socket, asio::buffer(data, size), asyncBranch(successHandler, errorHandler));
 	}
 	
@@ -349,7 +381,13 @@ void WozekConnectionHandler::receiveSegmentHeader(size_t totalSize, SegmentHandl
 		data::SegmentedTransfer::SegmentHeader header;
 		std::memcpy(&header, buffer.data(), sizeof(header));
 		
-		log("Recived segment header with size ", header.size);
+		//log("Recived segment header with size ", header.size);
+		
+		if(header.size > totalSize - receivedBytes)
+		{
+			logError("Segments sizes exceed total file size");
+			return; // end the connection
+		}
 		
 		receiveAndHandleFullSegment(totalSize, segmentHandler, finishedHandler, receivedBytes, header.size);
 	});
@@ -368,7 +406,7 @@ void WozekConnectionHandler::receiveAndHandleFullSegment(size_t totalSize, Segme
 			return;
 		}
 		
-		log("Loaded full segment");
+		//log("Loaded full segment");
 		buffer[0] = data::SegmentedTransfer::ContinueCode;
 		asyncWrite(1, [=]{receiveSegmentHeader(totalSize, segmentHandler, finishedHandler, receivedBytes);} );
 		return;
@@ -378,7 +416,7 @@ void WozekConnectionHandler::receiveAndHandleFullSegment(size_t totalSize, Segme
 	asyncRead(bytesToLoad, [=](size_t length)
 	{
 		cancelTimeoutTimer();
-		log("Received subsegment with length: ", length);
+		//log("Received subsegment with length: ", length);
 		if(bytesToLoad - length < 0)
 		{
 			throw -1;
@@ -390,6 +428,67 @@ void WozekConnectionHandler::receiveAndHandleFullSegment(size_t totalSize, Segme
 		});
 	});
 	
+}
+
+/*
+template <typename FlushBufferHandler, typename AckHandler>
+void WozekConnectionHandler::readSegmentedBuffers(size_t bufferLength, char* buffer, FlushBufferHandler flushBufferHandler, AckHandler ackHandler, size_t bufferOffset)
+{
+	
+	data::SegmentedTransfer::SegmentHeader header;
+	
+	asio::async_read(socket, asio::buffer(&header, sizeof(header)), asyncBranch([=]
+	{
+		size_t bytesToRead = std::min(bufferLength - bufferOffset, header.size);
+		asio::async_read(socket, asio::buffer(buffer, bytesToRead), asyncBranch([=]
+		{
+			if(bytesToRead == header.size)
+			{
+				ackHandler(header.size, [=]
+				{
+					readSegmentedBuffers(bufferLength, buffer, flushBufferHandler, ackHandler, bufferOffset + header.size);
+				});
+				return;
+			}
+			
+			flushBufferHandler(bufferOffset + bytesToRead)
+		}));
+		
+	}));
+}
+
+*/
+template <typename BufferEndHandler, typename AckHandler>
+void WozekConnectionHandler::sendSegmentedBuffers(size_t segmentLength, size_t bufferLength, char* buffer, BufferEndHandler bufferEndedHandler, AckHandler ackHandler, size_t bytesSent)
+{
+	data::SegmentedTransfer::SegmentHeader header;
+	
+	if(segmentLength > bufferLength - bytesSent - sizeof(header))
+	{
+		header.size = bufferLength - bytesSent - sizeof(header);
+	}
+	else
+	{
+		header.size = segmentLength;
+	}
+	std::memcpy(buffer + bytesSent, &header, sizeof(header));
+	
+	asio::async_write(socket, asio::buffer(buffer + bytesSent, header.size + sizeof(header)), asyncBranch([=](size_t length)
+	{
+		ackHandler(header.size, [=]()
+		{
+			if(bytesSent + length == bufferLength)
+			{
+				bufferEndedHandler([=](size_t newBufferLength)
+				{
+					sendSegmentedBuffers(segmentLength, newBufferLength, buffer, bufferEndedHandler, ackHandler, 0);
+				});
+				return;
+			}
+			sendSegmentedBuffers(segmentLength, bufferLength, buffer, bufferEndedHandler, ackHandler, bytesSent + header.size);
+		});
+		
+	}));
 }
 
 

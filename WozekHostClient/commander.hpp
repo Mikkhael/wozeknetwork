@@ -40,6 +40,7 @@ What do you want to do?
 1. Connect to a tcp server
 2. Register as host
 3. Send a map file
+4. Download a map file
 =============
 )";
 	}
@@ -69,6 +70,11 @@ What do you want to do?
 			case '3':
 				{
 					sendMapFile();
+					return;
+				}
+			case '4':
+				{
+					downloadMapFile();
 					return;
 				}
 			default:
@@ -160,6 +166,30 @@ What do you want to do?
 		
 		connection.post([=]{
 			if(connection.uploadMapFile(filePath, maxSegmentLength))
+			{
+				std::cout << "File sent successfuly\n";
+			}
+			else
+			{
+				std::cout << "File transfer failed\n";
+			}
+			postGetCommand();
+		});
+	}
+	
+	void downloadMapFile()
+	{
+		fs::path filePath;
+		data::IdType id;
+		
+		std::cout << "Input path where to save the file: ";
+		std::cin >> filePath;
+		
+		std::cout << "Input id of the map to download: ";
+		std::cin >> id;
+		
+		connection.post([=]{
+			if(connection.downloadMapFile(id, filePath))
 			{
 				std::cout << "File sent successfuly\n";
 			}
