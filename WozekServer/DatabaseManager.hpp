@@ -106,6 +106,9 @@ template<Database::Table table>
 IdType DatabaseManager::createAndAddRecord(const typename Database::recordType<table>::Header& header)
 {
 	auto id = getNextFreeId<table>();
+	if(id == 0)
+		return 0;
+	
 	auto& h = database->get<table>()[id].header;
 	h = header;
 	return h.id = id;

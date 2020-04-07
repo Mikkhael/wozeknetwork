@@ -28,6 +28,36 @@ using Vector3 = Vector<T, 3>;
 using Vector2f = Vector2<float>;
 using Vector3f = Vector3<float>;
 
+
+
+/// Data Structures ///
+
+namespace Host
+{
+	struct Header
+	{
+		IdType id;
+		StaticString<32> name;
+	};
+}
+
+namespace Controller
+{
+	struct Header {
+		IdType id;
+	};
+	struct DesiredState {
+		Vector3f position;
+		Vector2f orientation;
+		Vector2f wheelSpeed;
+	};
+	struct MeasuredState {
+		Vector2f wheelSpeed;
+	};
+}
+
+
+
 /// Protocols
 
 constexpr char HeartbeatCode = 0x00;
@@ -35,8 +65,19 @@ namespace RegisterNewHost
 {
 	constexpr char Code = 0x01;
 	
-	constexpr char Failure = 0x00;
-	constexpr char Success = 0x01;
+	using Request = Host::Header;
+	
+	struct Response
+	{
+		static constexpr char Failure = 0x00;
+		static constexpr char Success = 0x01;
+		
+		char code;
+		IdType id;
+		
+		static Response make(char code, IdType id) {return Response{code, id}; }
+	};
+	
 }
 
 namespace SegmentedTransfer
@@ -49,6 +90,8 @@ namespace SegmentedTransfer
 	struct SegmentAck
 	{
 		char code;
+		
+		static SegmentAck make(char code) {return SegmentAck{code};}
 	};
 	
 	struct SegmentHeader
@@ -97,33 +140,6 @@ namespace DownloadMap
 		size_t totalMapSize;
 	};
 	
-}
-
-
-/// Data Structures ///
-
-namespace Host
-{
-	struct Header
-	{
-		IdType id;
-		StaticString<32> name;
-	};
-}
-
-namespace Controller
-{
-	struct Header {
-		IdType id;
-	};
-	struct DesiredState {
-		Vector3f position;
-		Vector2f orientation;
-		Vector2f wheelSpeed;
-	};
-	struct MeasuredState {
-		Vector2f wheelSpeed;
-	};
 }
 
 

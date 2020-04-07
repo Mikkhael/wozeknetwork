@@ -12,10 +12,10 @@ class Commander
 	
 public:
 	
-	tcp::Connection connection;
+	tcp::Connection tcpConnection;
 	
 	Commander(asio::io_context& ioContext_)
-		: ioContext(ioContext_), connection(ioContext_)
+		: ioContext(ioContext_), tcpConnection(ioContext_)
 	{
 	}
 	
@@ -53,7 +53,13 @@ What do you want to do?
 			showHelp();
 			
 			char op;
-			std::cin >> op;
+			if(! (std::cin >> op) )
+			{
+				std::cin.clear();
+				std::cin.ignore(std::numeric_limits<std::streamsize>::max());
+				continue;
+			}
+			
 			
 			switch (op)
 			{
@@ -79,6 +85,7 @@ What do you want to do?
 				}
 			default:
 				{
+					std::cout << "Unknown command\n";
 					continue;
 				}
 			}
@@ -86,8 +93,7 @@ What do you want to do?
 		
 		
 	}
-
-
+	
 	void connect()
 	{
 		std::string ip;
@@ -103,22 +109,21 @@ What do you want to do?
 		std::cin >> hi;
 		
 		std::cout << "Connecting...\n";
-			
-		Error err;
-		connection.resolveAndConnect(ip, port, err);
 		
-		if(err)
+		auto callback = [=](bool result)
 		{
-			std::cout << "Error during connection: " << err;
-		}
-		else
-		{
-			std::cout << "Connected successfully to " << connection.getRemote() << '\n';
-			connection.heartbeatInterval = std::chrono::seconds(hi);
-			connection.startHeartbeatTimer();
-		}
+			if(result)
+			{
+				std::cout << "Success\n";
+			}
+			else
+			{
+				std::cout << "Failure\n";
+			}
+			postGetCommand();
+		};
 		
-		postGetCommand();
+		tcpConnection.resolveAndConnect(ip, port, callback);
 	}
 
 
@@ -140,65 +145,30 @@ What do you want to do?
 		header.id = id;
 		std::memcpy(&header.name, name.data(), name.size() + 1);
 		
-		connection.post([this, header]{
-			if(connection.registerAsHost(header))
+		auto callback = [this](data::IdType id)
+		{
+			if(id == 0)
 			{
-				std::cout << "Registered successfuly with id: " << connection.getId() << '\n';
+				std::cout << "Failure\n";
 			}
 			else
 			{
-				std::cout << "Registration failed\n";
+				std::cout << "Success\n Id: " << id << '\n';
 			}
 			postGetCommand();
-		});
+		};
+		
+		tcpConnection.registerAsNewHost(header, callback);
 	}
 
 	void sendMapFile()
 	{
-		fs::path filePath;
-		size_t maxSegmentLength;
 		
-		std::cout << "Input path to the file: ";
-		std::cin >> filePath;
-		
-		std::cout << "Input max segment length (0 for maximum buffer length): ";
-		std::cin >> maxSegmentLength;
-		
-		connection.post([=]{
-			if(connection.uploadMapFile(filePath, maxSegmentLength))
-			{
-				std::cout << "File sent successfuly\n";
-			}
-			else
-			{
-				std::cout << "File transfer failed\n";
-			}
-			postGetCommand();
-		});
 	}
 	
 	void downloadMapFile()
 	{
-		fs::path filePath;
-		data::IdType id;
 		
-		std::cout << "Input path where to save the file: ";
-		std::cin >> filePath;
-		
-		std::cout << "Input id of the map to download: ";
-		std::cin >> id;
-		
-		connection.post([=]{
-			if(connection.downloadMapFile(id, filePath))
-			{
-				std::cout << "File sent successfuly\n";
-			}
-			else
-			{
-				std::cout << "File transfer failed\n";
-			}
-			postGetCommand();
-		});
 	}
 	
 };

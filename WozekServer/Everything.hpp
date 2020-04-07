@@ -8,6 +8,7 @@
 #include <memory>
 #include <thread>
 #include <filesystem>
+namespace fs = std::filesystem;
 
 #include "DatabaseManager.hpp"
 #include "TCPWozekServer.hpp"

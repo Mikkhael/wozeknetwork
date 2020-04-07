@@ -22,7 +22,7 @@ int main(int argc, char** argv)
 	
 	short port = 8081;
 	short threads = 3;
-	std::string dir = "files";
+	std::string dir = "ServerFiles";
 	
 	#endif // RELEASE
 	
@@ -34,11 +34,18 @@ int main(int argc, char** argv)
 	db::databaseManager.setDatabase(database);
 	db::databaseManager.createStrand(ioContext);
 	
-	assert( fileManager.setWorkingDirectory(dir) );
+	if( !fileManager.setWorkingDirectory(dir) )
+	{
+		std::cout << "Working directory of \"" << dir << "\" (" << fs::absolute(fs::path(dir)) << ") dosent exist\n";
+		return 0;
+	}
 	fileManager.createStrand(ioContext);
 	
 	tcp::WozekServer server(ioContext);
-	server.start(port);
+	if(server.start(port))
+	{
+		std::cout << "Server started on port " << port << '\n';
+	}
 
 	std::vector<std::thread> threadPool;
 	threadPool.reserve(numberOfAdditionalThreads);

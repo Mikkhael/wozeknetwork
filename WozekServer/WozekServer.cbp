@@ -60,6 +60,7 @@
 		<Unit filename="fileManager.cpp" />
 		<Unit filename="fileManager.hpp" />
 		<Unit filename="main.cpp" />
+		<Unit filename="segmentedFileTransfer.hpp" />
 		<Unit filename="test.cpp" />
 		<Extensions>
 			<code_completion />

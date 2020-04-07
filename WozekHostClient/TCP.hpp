@@ -7,8 +7,11 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <type_traits>
 
 namespace fs = std::filesystem;
+
+
 
 namespace tcp
 {
@@ -34,30 +37,14 @@ class Connection
 	std::array<char, bufferSize> buffer;
 	
 	
+	
 	data::IdType id = 0;
 	
 	asio::steady_timer heartbeatTimer;
 	
-	
-	template <typename T>
-	void writeToBuffer(T& data, size_t offset = 0)
+	void defaultErrorHandler(const Error& err)
 	{
-		std::memcpy(buffer.data() + offset, &data, sizeof(data));
-	}
-	template <typename T>
-	void loadFromBuffer(T& data, size_t offset = 0)
-	{
-		std::memcpy(&data, buffer.data() + offset, sizeof(data));
-	}
-	
-	
-	void sendFromBuffer(size_t length, Error& err)
-	{
-		asio::write(socket, asio::buffer(buffer, length), err);
-	}
-	void receiveToBuffer(size_t length, Error& err)
-	{
-		asio::read(socket, asio::buffer(buffer, length), err);
+		std::cout << " Error: " << err << '\n';
 	}
 	
 public:
@@ -66,56 +53,138 @@ public:
 	{
 	}
 	
+	/// Logging
+	
+	std::ostream& printPrefix(std::ostream& os) // TODO: add timestamp
+	{
+		os << "[ ";
+		if(socket.is_open())
+			os << socket.remote_endpoint() << ' ';
+		return os << "] ";
+		
+	}
+	template <typename ...Ts>
+	void log(Ts ...args)
+	{
+		#ifndef SILENT
+		(printPrefix(std::clog) << ... << args) << '\n'; 
+		#endif // SILENT
+	}
+	template <typename ...Ts>
+	void logError(Ts ...args)
+	{
+		#ifndef SILENT
+		((printPrefix(std::cerr) << "Error ") << ... << args) << '\n'; 
+		#endif // SILENT
+	}
+	
+	/// Async ///
+	
+	template <typename Handler, typename ... Args>
+	void execute(Handler handler, Args&& ... args)
+	{
+		if constexpr (std::is_member_function_pointer_v<Handler>)
+		{
+			this->*handler( std::forward<Args>(args)... );
+		}
+		else
+		{
+			handler( std::forward<Args>(args)... );
+		}
+	}
+	template <typename Handler>
+	auto getNormalizedHandler(Handler handler)
+	{
+		if constexpr (std::is_member_function_pointer_v<Handler>)
+			return [this, handler](auto&& ... args){this->*handler(std::forward<decltype(args)>(args)...); };
+		else
+			return handler;
+	}
+	
+	
 	template <typename Handler>
 	auto post(Handler handler)
 	{
-		return asio::post(strand, handler);
+		return asio::post(strand, getNormalizedHandler(handler));
 	}
 	
 	auto& getStrand() {return strand;}
 	
+	template <typename Handler, typename ErrorHandler>
+	auto ioHandler(Handler handler, ErrorHandler errorHandler)
+	{
+		return [handler, errorHandler, this](const Error& err, auto&& ... args) { 
+			if(err) 
+				{ execute(errorHandler, err); return; } 
+			if constexpr (std::is_invocable_v<Handler>)
+				execute(handler); 
+			else 
+				execute(handler, std::forward<decltype(args)>(args)... ); };
+	}
+	
+	template <typename Buffer, typename Handler>
+	void asyncRead(Buffer buffer, Handler handler)
+	{
+		asio::async_read(socket, buffer, handler);
+	}
+	template <typename Handler>
+	void asyncRead(const size_t length, Handler handler)
+	{
+		asio::async_read(socket, asio::buffer(buffer, length), handler);
+	}
+	
+	template <typename Buffer, typename Handler>
+	void asyncWrite(Buffer buffer, Handler handler)
+	{
+		asio::async_write(socket, buffer, handler);
+	}
+	template <typename Handler>
+	void asyncWrite(const size_t length, Handler handler)
+	{
+		asio::async_write(socket, asio::buffer(buffer, length), handler);
+	}
+	
+	template <typename T>
+	size_t writeObjectToBuffer(T& object, size_t off = 0)
+	{
+		std::memcpy(buffer.data() + off, &object, sizeof(T));
+		return sizeof(T);
+	}
+	template <typename T>
+	size_t readObjectFromBuffer(T& object, size_t off = 0)
+	{
+		std::memcpy(&object, buffer.data() + off, sizeof(T));
+		return sizeof(T);
+	}
+	
 	/// Timer ///
 	
-	std::atomic<bool> isDoingWork = false;
-	std::chrono::seconds heartbeatInterval = std::chrono::seconds(15);
-	void startHeartbeatTimer()
-	{		
-		heartbeatTimer.expires_after(heartbeatInterval);
-		heartbeatTimer.async_wait([=](const Error& aborted)
-		{
-			if(aborted)
-				return;
-			
-			Error err;
-			if(!isDoingWork.load())
-				asio::write(socket, asio::buffer(&data::HeartbeatCode, 1), err);
-			if(err)
-			{
-				std::cout << "Error while sending heartbeat:\n " << err;
-				return;
-			}
-			//std::cout << '+';
-			startHeartbeatTimer();
-		});
-	}
 	
 	/// Basics ///
 	
-	bool resolveAndConnect(std::string_view host, std::string_view service) {Error ignored; return resolveAndConnect(host, service, ignored);}
-	bool resolveAndConnect(std::string_view host, std::string_view service, Error& err)
+	void resolveAndConnect(std::string_view host, std::string_view service, std::function<void(bool)> requestCallback )
 	{
-		auto results = resolver.resolve(host, service, err);
-		if(err)
-		{
-			return false;
-		}
-		remoteEndpoint = asio::connect(socket, results, err);
-		if(err)
-		{
-			return false;
-		}
-		
-		return true;
+		resolver.async_resolve(host, service, [=](const Error& err, auto results)
+			{
+				if(err)
+				{
+					logError("During Relove: ", err);
+					requestCallback(false);
+					return;
+				}
+				
+				asio::async_connect(socket, results, [=](const Error& err, const auto& endpoint)
+					{
+						if(err)
+						{
+							logError("During Connection: ", err);
+							requestCallback(false);
+							return;
+						}
+						log("Connected to ", endpoint);
+						requestCallback(true);
+					});
+			});
 	}
 	
 	Socket& getSocket() {return socket;}
@@ -123,20 +192,14 @@ public:
 	
 	data::IdType getId() {return id;}
 	
+	
+	
 	/// Functionality ///
 	
-	// Register As Host
+	// Register As New Host
 	
-	bool registerAsHost(const data::Host::Header& header) {Error ignore; return registerAsHost(header, ignore);};
-	bool registerAsHost(data::Host::Header header, Error& err);
+	void registerAsNewHost(data::RegisterNewHost::Request reqHeader, std::function<void(data::IdType)> requestCallback );
 	
-	// Upload Map File
-	
-	bool uploadMapFile(const fs::path& mapFilePath, size_t maxSegmentLength = 0);
-	
-	// Download Map File
-	
-	bool downloadMapFile(data::IdType id, const fs::path& mapFilePath);
 	
 };
 

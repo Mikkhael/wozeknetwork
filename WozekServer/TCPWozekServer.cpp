@@ -4,6 +4,7 @@
 #include <string_view>
 #include <algorithm>
 
+
 namespace tcp
 {
 	
@@ -25,20 +26,16 @@ void WozekConnectionHandler::awaitRequest(bool silent)
 	
 	initBigBuffer();
 	
-	startTimeoutTimer();
-	asio::async_read(socket, asio::buffer(buffer, 1), asyncBranch(
-		[this](size_t length)
-		{
-			cancelTimeoutTimer();
-			handleReceivedRequestId(buffer[0]);
-		})
-	);
+	
+	asyncTimeoutReadToMainBuffer(1, asyncBranch(
+		[=]{handleReceivedRequestId(buffer[0]);},
+		&WozekConnectionHandler::logAndAbortErrorHandlerOrDisconnect
+	));
 }
 
-void WozekConnectionHandler::sendTerminatingBytes(const void* bytes, size_t length)
+void WozekConnectionHandler::sendTerminatingMessage(const char* bytes, size_t length)
 {
-	log("Finishing response (length: ", length, ")");
-	asio::async_write(socket, asio::buffer(bytes, length), asyncBranch(&WozekConnectionHandler::awaitRequest));
+	asyncWriteFromMemory(bytes, length, asyncBranch(&WozekConnectionHandler::awaitRequest));
 }
 
 
@@ -55,7 +52,7 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 	{
 		case data::RegisterNewHost::Code : // Register as new host
 		{
-			receiveRegisterHostRequestData();
+			handleRegisterHostRequest();
 			break;
 		}
 		case data::UploadMap::Code : // Host uploading a map file
@@ -70,7 +67,7 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 		}
 		default:
 		{
-			log("Request code not recognized");
+			logError("Request code not recognized");
 			// if not recognized, close connection
 		}
 	}
@@ -79,19 +76,16 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 
 /// Host ///
 
-void WozekConnectionHandler::receiveRegisterHostRequestData()
+void WozekConnectionHandler::handleRegisterHostRequest()
 {
-	log("Receiving Host Register Data");
-	startTimeoutTimer();
-	asio::async_read(socket, asio::buffer(buffer, sizeof(db::Host::Header)), asyncBranch(
-		[this](size_t length)
+	log("Handling Register Host Request");
+	
+	asyncTimeoutReadObject<db::Host::Header>(asyncBranch(
+		[=](auto& header)
 		{
-			cancelTimeoutTimer();
+			// Profilacticy, set the las character of name to NULL
+			header.name[sizeof(header.name) - 1] = '\0';
 			
-			buffer[length - 1] = '\0'; // Profilacticly, set last character to null
-			
-			db::Host::Header header;
-			std::memcpy(&header, buffer.data(), length);
 			tryRegisteringNewHost(header);
 		}
 	));
@@ -99,230 +93,185 @@ void WozekConnectionHandler::receiveRegisterHostRequestData()
 
 void WozekConnectionHandler::tryRegisteringNewHost(db::Host::Header& header)
 {
-	log("Trying to register host: ", header.id, " , " ,header.name);
-	asyncStrand(db::databaseManager, [header, this]
+	if(type != WozekConnectionHandler::Type::None)
 	{
-		bool res;
+		registerNewHostRequestFailed();
+		return;
+	}
+	
+	asyncPost(db::databaseManager.getStrand(), [=]
+	{
 		db::IdType newId = header.id;
 		if(header.id == 0)
 		{
 			newId = db::databaseManager.createAndAddRecord<db::Database::Table::Host>(header);
-			res = newId != 0;
+			if(newId == 0)
+			{
+				registerNewHostRequestFailed();
+				return;
+			}
 		}
-		else
+		else if(!db::databaseManager.addRecord<db::Database::Table::Host>(header))
 		{
-			res = db::databaseManager.addRecord<db::Database::Table::Host>(header);
+			registerNewHostRequestFailed();
+			return;
 		}
 		
-		if(type != Type::None)
-			res = false;
+		// Success
 		
-		if(res)
-		{
-			db::databaseManager.get<db::Database::Table::Host>(newId)->network.tcpConnection = shared_from_this();
-			id = newId;
-			type = Type::Host;
-			
-			asyncPost([this]{
-				log("Success registering host");
-				buffer[0] = data::RegisterNewHost::Success;
-				std::memcpy(buffer.data() + 1, &id, sizeof(id));
-				sendTerminatingBytes(1 + sizeof(id));
-			});
-		}
-		else
-		{
-			asyncPost([this, res]{
-				log("Failure registering host");
-				buffer[0] = data::RegisterNewHost::Failure;
-				sendTerminatingBytes(1);
-			});
-		}		
-	});	
+		type = WozekConnectionHandler::Type::Host;
+		id = newId;
+		db::databaseManager.get<db::Database::Table::Host>(newId)->network.tcpConnection = shared_from_this();
+		
+		registerNewHostRequestSuccess();
+	});
 }
+void WozekConnectionHandler::registerNewHostRequestSuccess()
+{
+	log("New Host Registration completed");
+	sendTerminatingMessageObject(data::RegisterNewHost::Response::make(data::RegisterNewHost::Response::Success, id));
+}
+
+void WozekConnectionHandler::registerNewHostRequestFailed()
+{
+	log("New Host Registration failed");
+	sendTerminatingMessageObject(data::RegisterNewHost::Response::make(data::RegisterNewHost::Response::Failure, 0));
+}
+
 
 /// Upload Map ///
 
 void WozekConnectionHandler::handleUploadMapRequest()
 {
 	log("Handling Upload Map Request");
-	startTimeoutTimer();
-	asyncRead(sizeof(data::UploadMap::RequestHeader), [=]
+	asyncTimeoutReadObject<data::UploadMap::RequestHeader>(asyncBranch(
+	[=](auto& reqHeader)
 	{
-		cancelTimeoutTimer();
-		
-		data::UploadMap::RequestHeader header;
-		std::memcpy(&header, buffer.data(), sizeof(header));
-		
-		if(type != Type::Host || header.hostId != id)
+		data::UploadMap::ResponseHeader resHeader;
+		if(reqHeader.totalMapSize <= 0)
 		{
-			log("Denied access for map upload");
-			sendTerminatingBytes(&data::UploadMap::ResponseHeader::DenyAccessCode, 1);
+			log("Invalid file size specified");
+			resHeader.code = data::UploadMap::ResponseHeader::InvalidSizeCode;
+			sendTerminatingMessageObject(resHeader);
+			return;
 		}
-		else if(header.totalMapSize >= size_t(4000000000) || header.totalMapSize <= 0)
+		if(type != Type::Host || id != reqHeader.hostId)
 		{
-			log("Invalid size for upload");
-			sendTerminatingBytes(&data::UploadMap::ResponseHeader::InvalidSizeCode, 1);
-		}
-		else
-		{
-			log("Preparing for transfer with size: ", header.totalMapSize );
-			size_t bigBufferSize = std::min(header.totalMapSize, maxBigBufferSize);
-			initBigBuffer(bigBufferSize);
-			asyncStrand(fileManager, [=]
-			{
-				fileManager.deleteMapFile(id);
-				log("Deleted old map file");
-				asyncWrite(&data::UploadMap::ResponseHeader::AcceptCode, 1, [=]
-				{
-					receiveSegmentHeader(header.totalMapSize,
-					[=](const char* data, size_t length, auto handler)
-					{
-						size_t bytesToWriteToBigBuffer = std::min(getRemainingBigBufferSize(), length);
-						writeToBigBuffer(data, bytesToWriteToBigBuffer);
-						
-						if(bytesToWriteToBigBuffer < length)
-						{
-							asyncStrand(fileManager, [=]
-							{
-								auto path = fileManager.getPathToMapFile(id);
-								log("Writing " , bigBufferTop, " bytes into map file: ", path);
-								if(!fileManager.appendBufferToFile(path, bigBuffer.data(), bigBufferTop))
-								{
-									logError("File writing failed");
-									return;
-								}
-								log("Writing complete");
-								resetBigBufferTop();
-								writeToBigBuffer(data, length - bytesToWriteToBigBuffer);
-								asyncPost(handler);
-							});
-							return;
-						}
-						asyncPost(handler);
-					},
-					[=]
-					{
-						if(bigBufferTop == 0)
-						{
-							awaitRequest();
-							return;
-						}
-						asyncStrand(fileManager, [=]
-						{
-							auto path = fileManager.getPathToMapFile(id);
-							log("Writing " , bigBufferTop, " bytes into map file: ", path);
-							if(!fileManager.appendBufferToFile(path, bigBuffer.data(), bigBufferTop))
-							{
-								logError("File writing failed");
-								return;
-							}
-							log("Writing complete");
-							awaitRequest();
-						});
-					});
-				});
-			});
+			log("Access denied");
+			resHeader.code = data::UploadMap::ResponseHeader::DenyAccessCode;
+			sendTerminatingMessageObject(resHeader);
+			return;
 		}
 		
-	});
+		// Request accepted
+		resHeader.code = data::UploadMap::ResponseHeader::AcceptCode;
+		asyncWriteObject(resHeader, asyncBranch([=]{ initiateMapFileUpload(reqHeader); }));
+	}));
 }
+
+void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeader reqHeader, bool silent)
+{
+	fs::path path = fileManager.getPathToMapFile(reqHeader.hostId);
+	
+	initBigBuffer( std::min(maxBigBufferSize, reqHeader.totalMapSize) );
+	
+	auto flushBuffer = [path, this](auto callback)
+	{
+		if(bigBufferTop == 0)
+		{
+			callback();
+			return;
+		}
+		
+		asyncPost(fileManager.getStrand(), [=]
+		{
+			if(!fileManager.appendBufferToFile(path, bigBuffer.data(), bigBufferTop))
+			{
+				logError("Unknown error while writting to file ", path);
+				return;
+			}
+			bigBufferTop = 0;
+			asyncPost(callback);
+		});
+	};
+	
+	
+	segFileTransfer::readFile(reqHeader.totalMapSize, 
+		[=](const bool header, const size_t length, auto callback)
+		{
+			if(header)
+			{
+				asyncTimeoutReadToMainBuffer(length, asyncBranch([=](const size_t length){ callback(buffer.data(), length); }));
+				return;
+			}
+			const size_t bytesToRead = std::min(getRemainingBigBufferSize(), length);
+			asyncTimeoutReadToMemory(bigBuffer.data() + bigBufferTop, bytesToRead, asyncBranch(
+			[=](const size_t length)
+			{
+				const auto bytesTemp = bigBuffer.data() + bigBufferTop;
+				bigBufferTop += length;
+				callback(bytesTemp, length);
+			}));
+		},
+		[=](const char* receivedBytes, const size_t receivedBytesLength, auto callback)
+		{
+			if(bigBufferTop == bigBuffer.size())
+			{
+				flushBuffer(callback);
+				return;
+			}
+			callback();
+		},
+		[=](const size_t remainingFileSize, const size_t readSegmentSize, auto callback)
+		{
+			if(remainingFileSize == readSegmentSize)
+			{
+				flushBuffer([=]
+				{
+					if(!silent)
+						log("File transfer completed");
+					asyncWriteObject(data::SegmentedTransfer::SegmentAck::make(data::SegmentedTransfer::FinishedCode), asyncBranch([=] {finalizeUploadMap(reqHeader);} ));
+				});
+				return;
+			}
+			asyncWriteObject(data::SegmentedTransfer::SegmentAck::make(data::SegmentedTransfer::ContinueCode), asyncBranch(callback) );
+		},
+		[=](const data::SegmentedTransfer::SegmentHeader& header, const size_t remainingFileSize, auto callback)
+		{
+			if(header.size > remainingFileSize)
+			{
+				log("Total segments sizes exceeded total file size. Canceling transfer.");
+				sendTerminatingMessageObject(data::SegmentedTransfer::SegmentAck::make(data::SegmentedTransfer::ErrorCode));
+				return;
+			}
+			
+			// Logging
+			if(!silent)
+			{
+				int percent1 = 100.f * float(remainingFileSize) / float(reqHeader.totalMapSize);
+				int percent2 = 100.f * float(remainingFileSize - header.size) / float(reqHeader.totalMapSize);
+				if(percent2 != percent1)
+				{
+					log("(", (100 - percent1) , "/100) ", (reqHeader.totalMapSize - remainingFileSize), " bytes transfered in total" );
+				}
+			}
+			
+			callback();
+		}
+	);
+	
+}
+
+void WozekConnectionHandler::finalizeUploadMap(data::UploadMap::RequestHeader header)
+{
+	log("Map upload with id", header.hostId, " and size ", header.totalMapSize, ", completed successfully");
+	awaitRequest();
+}
+
 
 void WozekConnectionHandler::handleDownloadMapRequest()
 {
-	log("Handling download map request");
-	startTimeoutTimer();
-	asyncRead(sizeof(data::DownloadMap::RequestHeader), [=]
-	{
-		cancelTimeoutTimer();
-		data::DownloadMap::RequestHeader header;
-		std::memcpy(&header, buffer.data(), sizeof(header));
-		
-		log("Id: ", header.hostId);
-		
-		asyncStrand(fileManager, [=]
-		{
-			auto pathToMapFile = fileManager.getPathToMapFile(header.hostId);
-			
-			data::DownloadMap::ResponseHeader resHeader;
-			if(!fs::is_regular_file(pathToMapFile))
-			{
-				log("File does not exist.");
-				resHeader.code = data::DownloadMap::ResponseHeader::DenyAccessCode;
-				sendTerminatingBytes(&resHeader, sizeof(resHeader));
-				return;
-			}
-			
-			auto size = fs::file_size(pathToMapFile);
-			
-			resHeader.code = data::DownloadMap::ResponseHeader::AcceptCode;
-			resHeader.totalMapSize = size;
-			
-			size_t headerSize = sizeof(data::SegmentedTransfer::SegmentHeader);
-			initBigBuffer(std::min(size + headerSize, maxBigBufferSize));
-			size_t fileSize = bigBuffer.size() - headerSize;
-			remainingBytesToSend = size;
-			
-			if(!fileManager.writeFileToBuffer(pathToMapFile, 0, (char*)bigBuffer.data() + headerSize, fileSize))
-			{
-				logError("Cannot read the map file");
-				return;
-			}
-			log("Loaded ", fileSize, " bytes from map file: ", pathToMapFile);
-			
-			asyncWrite(&resHeader, sizeof(resHeader), [=]
-			{
-				sendSegmentedBuffers(1300, bigBuffer.size(), bigBuffer.data(),
-				[=](auto continuation)
-				{
-					log("Reloading file buffer. Offset: ", size - remainingBytesToSend);
-					asyncStrand(fileManager, [=]
-					{
-						auto newBufferSize = std::min(fileSize, remainingBytesToSend);
-						if(!fileManager.writeFileToBuffer(pathToMapFile, size - remainingBytesToSend, (char*)bigBuffer.data() + headerSize, newBufferSize))
-						{
-							logError("Cannot read the map file");
-							return;
-						}
-						log("Loaded ", newBufferSize, " bytes from map file: ", pathToMapFile);
-						asyncPost([=]{continuation(newBufferSize + headerSize);});
-					});
-				},
-				[=](size_t length, auto continuation)
-				{
-					if(length == 0)
-					{
-						logError("Fatal internal error. Tried to send 0-length header");
-						return;
-					}
-					//log("ACK: ", length, "  ", remainingBytesToSend);
-					remainingBytesToSend -= length;
-					startTimeoutTimer();
-					asyncRead(sizeof(data::SegmentedTransfer::SegmentAck), [=]
-					{
-						cancelTimeoutTimer();
-						data::SegmentedTransfer::SegmentAck ackHeader;
-						std::memcpy(&ackHeader, buffer.data(), sizeof(ackHeader));
-						if(remainingBytesToSend == 0)
-						{
-							if(ackHeader.code == data::SegmentedTransfer::FinishedCode)
-							{
-								log("Transfer completed");
-								awaitRequest();
-								return;
-							}
-						}
-						else if(ackHeader.code == data::SegmentedTransfer::ContinueCode)
-						{
-							asyncPost(continuation);
-							return;
-						}
-						logError("during file transmition");
-					});
-				});
-			});
-		});
-	});
+	
 }
 
 
