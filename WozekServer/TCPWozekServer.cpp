@@ -24,10 +24,10 @@ void WozekConnectionHandler::awaitRequest(bool silent)
 	if(!silent)
 		log("Awaiting request");
 	
-	initBigBuffer();
+	resetState();
 	
 	
-	asyncTimeoutReadToMainBuffer(1, asyncBranch(
+	asyncReadToMainBuffer(1, asyncBranch(
 		[=]{handleReceivedRequestId(buffer[0]);},
 		&WozekConnectionHandler::logAndAbortErrorHandlerOrDisconnect
 	));
@@ -80,7 +80,7 @@ void WozekConnectionHandler::handleRegisterHostRequest()
 {
 	log("Handling Register Host Request");
 	
-	asyncTimeoutReadObject<db::Host::Header>(asyncBranch(
+	asyncReadObject<db::Host::Header>(asyncBranch(
 		[=](auto& header)
 		{
 			// Profilacticy, set the las character of name to NULL
@@ -129,13 +129,18 @@ void WozekConnectionHandler::tryRegisteringNewHost(db::Host::Header& header)
 void WozekConnectionHandler::registerNewHostRequestSuccess()
 {
 	log("New Host Registration completed");
-	sendTerminatingMessageObject(data::RegisterNewHost::Response::make(data::RegisterNewHost::Response::Success, id));
+	data::RegisterNewHost::Response header;
+	header.code = data::RegisterNewHost::Response::Success;
+	header.id = id;
+	sendTerminatingMessageObject(header);
 }
 
 void WozekConnectionHandler::registerNewHostRequestFailed()
 {
 	log("New Host Registration failed");
-	sendTerminatingMessageObject(data::RegisterNewHost::Response::make(data::RegisterNewHost::Response::Failure, 0));
+	data::RegisterNewHost::Response header;
+	header.code = data::RegisterNewHost::Response::Failure;
+	sendTerminatingMessageObject(header);
 }
 
 
@@ -144,7 +149,7 @@ void WozekConnectionHandler::registerNewHostRequestFailed()
 void WozekConnectionHandler::handleUploadMapRequest()
 {
 	log("Handling Upload Map Request");
-	asyncTimeoutReadObject<data::UploadMap::RequestHeader>(asyncBranch(
+	asyncReadObject<data::UploadMap::RequestHeader>(asyncBranch(
 	[=](auto& reqHeader)
 	{
 		data::UploadMap::ResponseHeader resHeader;
@@ -171,95 +176,91 @@ void WozekConnectionHandler::handleUploadMapRequest()
 
 void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeader reqHeader, bool silent)
 {
-	fs::path path = fileManager.getPathToMapFile(reqHeader.hostId);
+	using State = States::FileTransferReceiveThreadsafe;
+	State* state = setState<State>();
 	
-	initBigBuffer( std::min(maxBigBufferSize, reqHeader.totalMapSize) );
+	const size_t maxBigBufferSize = 4 * 1024 * 1024;
+	state->bigBuffer.resize(std::min(reqHeader.totalMapSize, maxBigBufferSize) );	
+	state->path = fileManager.getPathToMapFile(reqHeader.hostId);
+	fileManager.deleteMapFile(reqHeader.hostId);
 	
-	auto flushBuffer = [path, this](auto callback)
+	log("Initiating map upload | ", reqHeader.totalMapSize, " bytes");
+	
+	auto flushBufferToFile = [=](auto callback)
 	{
-		if(bigBufferTop == 0)
+		if(state->bigBufferTop == 0)
 		{
 			callback();
 			return;
 		}
 		
-		asyncPost(fileManager.getStrand(), [=]
-		{
-			if(!fileManager.appendBufferToFile(path, bigBuffer.data(), bigBufferTop))
+		asyncPost(fileManager.getStrand(), [=]{
+			if(!fileManager.appendBufferToFile(state->path, state->bigBuffer.data(), state->bigBufferTop))
 			{
-				logError("Unknown error while writting to file ", path);
+				logError("Cannot write to file ", state->path);
 				return;
 			}
-			bigBufferTop = 0;
+			state->bigBufferTop = 0;
 			asyncPost(callback);
 		});
 	};
 	
-	
-	segFileTransfer::readFile(reqHeader.totalMapSize, 
-		[=](const bool header, const size_t length, auto callback)
-		{
-			if(header)
-			{
-				asyncTimeoutReadToMainBuffer(length, asyncBranch([=](const size_t length){ callback(buffer.data(), length); }));
-				return;
-			}
-			const size_t bytesToRead = std::min(getRemainingBigBufferSize(), length);
-			asyncTimeoutReadToMemory(bigBuffer.data() + bigBufferTop, bytesToRead, asyncBranch(
-			[=](const size_t length)
-			{
-				const auto bytesTemp = bigBuffer.data() + bigBufferTop;
-				bigBufferTop += length;
-				callback(bytesTemp, length);
+	segFileTransfer::readFile(reqHeader.totalMapSize,
+		[=](auto callback){
+			asyncReadToMainBuffer(sizeof(data::SegmentedTransfer::SegmentHeader), asyncBranch([=]{
+				callback(buffer.data());
 			}));
 		},
-		[=](const char* receivedBytes, const size_t receivedBytesLength, auto callback)
-		{
-			if(bigBufferTop == bigBuffer.size())
+		[=](const size_t remainingSegmentSize, auto callback){
+			const size_t remianingBufferSize = state->getRemainingBigBufferSize();
+			if(remainingSegmentSize < remianingBufferSize)
 			{
-				flushBuffer(callback);
+				asyncReadToMemory(state->getBigBufferEnd(), remainingSegmentSize, asyncBranch([=]{
+					state->advance(remainingSegmentSize);
+					callback(remainingSegmentSize);
+				}));
+				return;
+			}
+			asyncReadToMemory(state->getBigBufferEnd(), remianingBufferSize, asyncBranch([=]{
+				state->advance(remianingBufferSize);
+				flushBufferToFile([=] { callback(remianingBufferSize); } );
+			}));
+		},
+		[=](const data::SegmentedTransfer::SegmentHeader& header, auto callback){
+			if(header.size + state->totalBytesRead > reqHeader.totalMapSize)
+			{
+				logError("Total segment sizes exceed file size");
 				return;
 			}
 			callback();
 		},
-		[=](const size_t remainingFileSize, const size_t readSegmentSize, auto callback)
-		{
-			if(remainingFileSize == readSegmentSize)
+		[=](auto callback){
+			if(state->totalBytesRead == reqHeader.totalMapSize)
 			{
-				flushBuffer([=]
-				{
-					if(!silent)
-						log("File transfer completed");
-					asyncWriteObject(data::SegmentedTransfer::SegmentAck::make(data::SegmentedTransfer::FinishedCode), asyncBranch([=] {finalizeUploadMap(reqHeader);} ));
+				flushBufferToFile([=]{
+					log("File transfer completed (", reqHeader.totalMapSize, " bytes received)");
+					data::SegmentedTransfer::SegmentAck ackHeader;
+					ackHeader.code = data::SegmentedTransfer::FinishedCode;
+					asyncWriteObject(ackHeader, asyncBranch([=]
+						{ finalizeUploadMap(reqHeader); }));
 				});
 				return;
 			}
-			asyncWriteObject(data::SegmentedTransfer::SegmentAck::make(data::SegmentedTransfer::ContinueCode), asyncBranch(callback) );
-		},
-		[=](const data::SegmentedTransfer::SegmentHeader& header, const size_t remainingFileSize, auto callback)
-		{
-			if(header.size > remainingFileSize)
-			{
-				log("Total segments sizes exceeded total file size. Canceling transfer.");
-				sendTerminatingMessageObject(data::SegmentedTransfer::SegmentAck::make(data::SegmentedTransfer::ErrorCode));
-				return;
-			}
 			
-			// Logging
 			if(!silent)
 			{
-				int percent1 = 100.f * float(remainingFileSize) / float(reqHeader.totalMapSize);
-				int percent2 = 100.f * float(remainingFileSize - header.size) / float(reqHeader.totalMapSize);
-				if(percent2 != percent1)
+				const unsigned int newProgress = 100.f * float(state->totalBytesRead) / reqHeader.totalMapSize;
+				if(newProgress > state->progress)
 				{
-					log("(", (100 - percent1) , "/100) ", (reqHeader.totalMapSize - remainingFileSize), " bytes transfered in total" );
+					log(state->totalBytesRead, " / ", reqHeader.totalMapSize, " bytes received (", newProgress, "%)");
+					state->progress = newProgress;
 				}
 			}
 			
-			callback();
-		}
-	);
-	
+			data::SegmentedTransfer::SegmentAck ackHeader;
+			ackHeader.code = data::SegmentedTransfer::ContinueCode;
+			asyncWriteObject(ackHeader, asyncBranch(callback));
+		});
 }
 
 void WozekConnectionHandler::finalizeUploadMap(data::UploadMap::RequestHeader header)

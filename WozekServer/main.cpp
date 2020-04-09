@@ -21,7 +21,7 @@ int main(int argc, char** argv)
 	#else
 	
 	short port = 8081;
-	short threads = 3;
+	short threads = 0;
 	std::string dir = "ServerFiles";
 	
 	#endif // RELEASE

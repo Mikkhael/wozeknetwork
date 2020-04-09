@@ -5,64 +5,67 @@
 
 namespace segFileTransfer
 {
-	template<typename Sender, typename DataProvider, typename AckHandler>
-	void sendFile(const size_t remainingFileSize, const size_t maxSegmentLength, Sender sender, DataProvider dataProvider, AckHandler ackHandler)
+	template<typename HeaderConsumer, typename Sender, typename AckHandler>
+	void sendFile(const size_t remainingFileSize, const size_t maxSegmentLength, HeaderConsumer headerConsumer, Sender sender, AckHandler ackHandler)
 	{
-		static constexpr size_t headerSize = sizeof(data::SegmentedTransfer::SegmentHeader);
-	
-		dataProvider(remainingFileSize, [=](const size_t availableDataLength, const char* dataToWrite)
+		data::SegmentedTransfer::SegmentHeader header;
+		header.size = std::min(remainingFileSize, maxSegmentLength);
+		headerConsumer(header, [=]
 		{
-			data::SegmentedTransfer::SegmentHeader header;
-			header.size = std::min(availableDataLength, maxSegmentLength);
-			sender(header, header.size, dataToWrite, [=](const size_t totalBytesSent)
-			{
-				ackHandler(totalBytesSent, [=]()
-				{
-					sendFile(remainingFileSize - header.size, maxSegmentLength, sender, dataProvider, ackHandler);
+			sender(true, header.size, [=](const size_t sentBytes){
+				sendSegmentData(header.size - sentBytes, sender, [=]{
+					ackHandler([=]{ sendFile(remainingFileSize - header.size, maxSegmentLength, headerConsumer, sender, ackHandler); });
 				});
 			});
 		});
 	}
 	
-	template<typename Receiver, typename DataConsumer, typename AckSender, typename HeaderVerifier>
-	void readFile(const size_t remainingFileSize, Receiver receiver, DataConsumer dataConsumer, AckSender ackSender, HeaderVerifier headerVerifier)
+	template<typename Sender, typename Callback>
+	void sendSegmentData(const size_t remainingSegmentSize, Sender sender, Callback callback)
+	{
+		if(remainingSegmentSize == 0)
+		{
+			callback();
+			return;
+		}
+		
+		sender(false, remainingSegmentSize, [=](const size_t sentBytes)
+			{ sendSegmentData(remainingSegmentSize - sentBytes, sender, callback); });
+	}
+	
+	
+	
+	template<typename HeaderReceiver, typename DataReceiver, typename HeaderVerifier, typename AckSender>
+	void readFile(const size_t remainingFileSize, HeaderReceiver headerReceiver, DataReceiver dataReceiver, HeaderVerifier headerVerifier, AckSender ackSender)
 	{
 		static constexpr size_t headerSize = sizeof(data::SegmentedTransfer::SegmentHeader);
 		
-		receiver(true, headerSize, [=](const char* receivedBytes, const size_t receivedBytesLength)
+		headerReceiver([=](const char* receivedBytes)
 		{
 			data::SegmentedTransfer::SegmentHeader header;
 			std::memcpy(&header, receivedBytes, headerSize);
 			
-			headerVerifier(header, remainingFileSize, [=]
+			headerVerifier(header, [=]
 			{
-				readSingleSegment(header.size, receiver, dataConsumer, [=]
+				readSegmentData(header.size, dataReceiver, [=]
 				{
-					ackSender(remainingFileSize, header.size, [=, newRemainingFileSize = remainingFileSize - header.size]()
-					{
-						readFile(newRemainingFileSize, receiver, dataConsumer, ackSender, headerVerifier);
-					});
+					ackSender([=]
+						{ readFile(remainingFileSize - header.size, headerReceiver, dataReceiver, headerVerifier, ackSender); } );
 				});
 			});
 		});
 	}
 	
-	template<typename Receiver, typename DataConsumer, typename Callback>
-	static void readSingleSegment(const size_t remainingSegmentSize, Receiver receiver, DataConsumer dataConsumer, Callback callback)
+	template<typename DataReceiver, typename Callback>
+	void readSegmentData(const size_t remainingSegmentSize, DataReceiver dataReceiver, Callback callback)
 	{
-		
-		receiver(false, remainingSegmentSize, [=](const char* receivedBytes, const size_t receivedBytesLength)
+		if(remainingSegmentSize == 0)
 		{
-			dataConsumer(receivedBytes, receivedBytesLength, [=]()
-			{
-				if(remainingSegmentSize - receivedBytesLength > 0)
-				{
-					readSingleSegment(remainingSegmentSize - receivedBytesLength, receiver, dataConsumer, callback);
-					return;
-				}
-				
-				callback();
-			});
+			callback();
+			return;
+		}
+		dataReceiver(remainingSegmentSize, [=](const size_t receivedDataLength){
+			readSegmentData(remainingSegmentSize - receivedDataLength, dataReceiver, callback);
 		});
 	}
 	

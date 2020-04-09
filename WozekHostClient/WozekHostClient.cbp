@@ -49,6 +49,8 @@
 		</Linker>
 		<Unit filename="../WozekServer/Datagrams.hpp" />
 		<Unit filename="../WozekServer/asioWrapper.hpp" />
+		<Unit filename="../WozekServer/segmentedFileTransfer.hpp" />
+		<Unit filename="../WozekServer/states.hpp" />
 		<Unit filename="Everything.hpp" />
 		<Unit filename="Imported.hpp" />
 		<Unit filename="TCP.cpp" />

@@ -10,6 +10,8 @@
 #include <chrono>
 #include <array>
 
+#include "states.hpp"
+
 
 namespace tcp
 {
@@ -32,22 +34,24 @@ private:
 	bool isShutDown = false;
 	
 	asio::steady_timer timeoutTimer;
-	std::chrono::seconds baseTimeoutDuration = std::chrono::seconds(35);
+	std::chrono::seconds timeoutDuration = std::chrono::seconds(35);
 	
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer = {0};
 	
-	/// Big buffer ///
+	/// State
 	
-	size_t maxBigBufferSize = 1024*1024*4;
-	std::vector<char> bigBuffer;
-	size_t bigBufferTop = 0;
-	size_t getRemainingBigBufferSize() {return bigBuffer.size() - bigBufferTop;}
+	States::Type globalState;
 	
-	void initBigBuffer(size_t size = 0)
+	template <typename T>
+	T* setState()
 	{
-		bigBuffer.resize(size);
-		bigBufferTop = 0;
+		return &globalState.emplace<T>();
+	}
+	
+	void resetState()
+	{
+		globalState.emplace<States::Empty>();
 	}
 	
 public:
@@ -112,14 +116,11 @@ private:
 	void sendTerminatingMessage(const char* bytes, size_t length);
 	void sendTerminatingMessageFromMainBuffer(size_t length) {sendTerminatingMessage(buffer.data(), length);}
 	template<typename T>
-	void sendTerminatingMessageObject(T& object)
+	void sendTerminatingMessageObject(T&& object)
 	{
 		saveObjectToMainBuffer(object);
 		sendTerminatingMessageFromMainBuffer(sizeof(object));
-	}
-	template<typename T>
-	void sendTerminatingMessageObject(T&& object) { T object_ = object; sendTerminatingMessageObject(object_); }
-	
+	}	
 	
 	// Register host
 	
@@ -157,19 +158,15 @@ private:
 	auto asyncPost(Handler handler) { return asyncPost(getExecutor(), handler); }
 	
 	template<typename Handler> 
-	void asyncTimeoutReadToMainBuffer(const size_t length, Handler handler) { asyncTimeoutReadToMemory(buffer.data(), length, handler, baseTimeoutDuration); }
-	template<typename Handler> 
-	void asyncTimeoutReadToMainBuffer(const size_t length, Handler handler, const std::chrono::seconds& timeoutDuration)
+	void asyncReadToMainBuffer(const size_t length, Handler handler)
 	{
-		asyncTimeoutReadToMemory(buffer.data(), length, handler, timeoutDuration);
+		asyncReadToMemory(buffer.data(), length, handler);
 	}
 	
 	template<typename Handler> 
-	void asyncTimeoutReadToMemory(char* buffer, const size_t length, Handler handler) {asyncTimeoutReadToMemory(buffer, length, handler, baseTimeoutDuration);}
-	template<typename Handler> 
-	void asyncTimeoutReadToMemory(char* buffer, const size_t length, Handler handler, const std::chrono::seconds& timeoutDuration)
+	void asyncReadToMemory(char* buffer, const size_t length, Handler handler)
 	{
-		startTimeoutTimer(timeoutDuration);
+		startTimeoutTimer();
 		asio::async_read(socket, asio::buffer(buffer, length), [me = shared_from_this(), handler](const Error& err, const size_t bytesLength)
 		{
 			me->cancelTimeoutTimer();
@@ -178,18 +175,16 @@ private:
 	}
 	
 	template<typename T, typename Handler> 
-	void asyncTimeoutReadObject(Handler handler) {asyncTimeoutReadObject<T>(handler, baseTimeoutDuration);}
-	template<typename T, typename Handler> 
-	void asyncTimeoutReadObject(Handler handler, const std::chrono::seconds& timeoutDuration)
+	void asyncReadObject(Handler handler)
 	{
 		static_assert ( sizeof(T) <= bufferSize );
 		
-		startTimeoutTimer(timeoutDuration);
+		startTimeoutTimer();
 		asio::async_read(socket, asio::buffer(buffer, sizeof(T)), [me = shared_from_this(), handler](const Error& err, const size_t bytesLength)
 		{
 			me->cancelTimeoutTimer();
 			T obj;
-			me->loadObjectFromMemory(obj, me->buffer.data());
+			me->loadObjectFromMainBuffer(obj);
 			handler(err, obj);
 		});
 	}
@@ -217,26 +212,20 @@ private:
 		asio::async_write(socket, asio::buffer(buffer, length), handler);
 	}
 	template<typename Handler, typename T> 
-	void asyncWriteObject(T& object, Handler handler)
-	{
-		saveObjectToMainBuffer(object);
-		asyncWriteFromMainBuffer(sizeof(object), handler);
-	}
-	template<typename Handler, typename T> 
 	void asyncWriteObject(T&& object, Handler handler)
 	{
-		T object_ = object;
-		asyncWriteObject(object_, handler);
+		saveObjectToMainBuffer(object);
+		asyncWriteFromMainBuffer(sizeof(T), handler);
 	}
 	
 	template<typename T>
-	void saveObjectToMainBuffer(T& object)
+	void saveObjectToMainBuffer(T&& object)
 	{
 		static_assert( sizeof(T) <= bufferSize );
 		std::memcpy(buffer.data(), &object, sizeof(T));
 	}
 	template<typename T>
-	void saveObjectToMemory(T& object, char* buffer)
+	void saveObjectToMemory(T&& object, char* buffer)
 	{
 		std::memcpy(buffer, &object, sizeof(T));
 	}
@@ -257,29 +246,21 @@ private:
 		shutConnection();
 	}
 	
-	void startTimeoutTimer() {startTimeoutTimer(baseTimeoutDuration);}
-	void startTimeoutTimer(const std::chrono::seconds& newDuration)
-	{
-		timeoutTimer.expires_after(newDuration);
+	void startTimeoutTimer() {
+		timeoutTimer.expires_after(timeoutDuration);
 		activateTimeoutTimer();
 	}
 	
-	void cancelTimeoutTimer()
-	{
+	void cancelTimeoutTimer() {
 		timeoutTimer.cancel();
 	}
 	
-	void activateTimeoutTimer()
-	{
+	void activateTimeoutTimer() {
 		timeoutTimer.async_wait([me = shared_from_this()](const Error& err){me->handleTimeout(err);});
 	}
 	
-	void refreshTimeoutTimer() {refreshTimeoutTimer(baseTimeoutDuration);}
-	void refreshTimeoutTimer(const std::chrono::seconds& newDuration)
-	{
-		// Dont refresh, if already expired
-		if (!isShutDown && timeoutTimer.expires_after(newDuration) > 0)
-		{
+	void refreshTimeoutTimer() {
+		if (!isShutDown && timeoutTimer.expires_after(timeoutDuration) > 0){
 			activateTimeoutTimer();
 		}
 	}
@@ -289,9 +270,7 @@ private:
 	void shutConnection()
 	{
 		isShutDown = true;
-		
 		timeoutTimer.cancel();
-		
 		socket.shutdown(Socket::shutdown_type::shutdown_both);
 		
 		if constexpr (!ShutdownOnDestruction)
@@ -301,7 +280,6 @@ private:
 		
 		Error ignoredError;
 		socket.close(ignoredError);
-		
 	}
 	
 	/// Handlers ///
@@ -332,7 +310,6 @@ private:
 
 	void timeoutHandler();
 	void shutdownHandler();
-	
 };
 
 struct WozekConnectionErrorHandler

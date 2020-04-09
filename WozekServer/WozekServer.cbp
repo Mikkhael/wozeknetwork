@@ -61,7 +61,9 @@
 		<Unit filename="fileManager.hpp" />
 		<Unit filename="main.cpp" />
 		<Unit filename="segmentedFileTransfer.hpp" />
+		<Unit filename="states.hpp" />
 		<Unit filename="test.cpp" />
+		<Unit filename="utility.hpp" />
 		<Extensions>
 			<code_completion />
 			<envvars />

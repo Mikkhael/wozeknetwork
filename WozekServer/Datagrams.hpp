@@ -74,8 +74,6 @@ namespace RegisterNewHost
 		
 		char code;
 		IdType id;
-		
-		static Response make(char code, IdType id) {return Response{code, id}; }
 	};
 	
 }
@@ -90,8 +88,6 @@ namespace SegmentedTransfer
 	struct SegmentAck
 	{
 		char code;
-		
-		static SegmentAck make(char code) {return SegmentAck{code};}
 	};
 	
 	struct SegmentHeader

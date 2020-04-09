@@ -5,6 +5,8 @@
 #include <string>
 #include <iostream>
 #include "TCP.hpp"
+#include <filesystem>
+namespace fs = std::filesystem;
 
 class Commander
 {
@@ -103,15 +105,12 @@ What do you want to do?
 		std::cin >> ip;
 		std::cout << " port: ";
 		std::cin >> port;
-	
-		int hi;
-		std::cout << "Heartbeat interval (in secconds): [default: 15] ";
-		std::cin >> hi;
 		
 		std::cout << "Connecting...\n";
 		
 		auto callback = [=](bool result)
 		{
+			tcpConnection.reset();
 			if(result)
 			{
 				std::cout << "Success\n";
@@ -123,6 +122,7 @@ What do you want to do?
 			postGetCommand();
 		};
 		
+		tcpConnection.cancelHeartbeat();
 		tcpConnection.resolveAndConnect(ip, port, callback);
 	}
 
@@ -133,20 +133,20 @@ What do you want to do?
 		data::IdType id;
 		
 		std::cout << "Input host name (max 30 cahracters): ";
-		std::cin >> name;
-		if(name.size() > 30)
-		{
-			name.resize(30);
-		}
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, name);
+		
 		std::cout << "Input host id (set to 0 to automaticly get id from the server): ";
 		std::cin >> id;
 		
 		data::Host::Header header;
 		header.id = id;
-		std::memcpy(&header.name, name.data(), name.size() + 1);
+		std::memcpy(&header.name, name.data(), sizeof(header.name));
 		
 		auto callback = [this](data::IdType id)
 		{
+			tcpConnection.reset();
 			if(id == 0)
 			{
 				std::cout << "Failure\n";
@@ -158,12 +158,36 @@ What do you want to do?
 			postGetCommand();
 		};
 		
+		tcpConnection.cancelHeartbeat();
 		tcpConnection.registerAsNewHost(header, callback);
 	}
 
 	void sendMapFile()
 	{
+		std::string path;
 		
+		std::cout << "Input path to the file to send: ";
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, path);
+		
+		
+		auto callback = [this](bool res)
+		{
+			tcpConnection.reset();
+			if(res)
+			{
+				std::cout << "Success\n";
+			}
+			else
+			{
+				std::cout << "Failure\n";
+			}
+			postGetCommand();
+		};
+		
+		tcpConnection.cancelHeartbeat();
+		tcpConnection.uploadMap(path, callback);
 	}
 	
 	void downloadMapFile()

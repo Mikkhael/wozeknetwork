@@ -31,7 +31,7 @@ class Connection
 	Socket socket;
 	Endpoint remoteEndpoint;
 	
-	
+	bool isConnected = false;
 	
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer;
@@ -41,15 +41,34 @@ class Connection
 	data::IdType id = 0;
 	
 	asio::steady_timer heartbeatTimer;
+	asio::steady_timer timeoutTimer;
+	
+	std::chrono::seconds timeoutDuration = std::chrono::seconds(35);
+	std::chrono::seconds heartbeatInterval = std::chrono::seconds(15);
 	
 	void defaultErrorHandler(const Error& err)
 	{
 		std::cout << " Error: " << err << '\n';
 	}
 	
+	/// State
+	
+	States::Type globalState;
+	
+	template <typename T>
+	T* setState()
+	{
+		return &globalState.emplace<T>();
+	}
+	
+	void resetState()
+	{
+		globalState.emplace<States::Empty>();
+	}
+	
 public:
 	Connection(asio::io_context& ioContext)
-		: strand(ioContext), resolver(strand), socket(strand), heartbeatTimer(strand)
+		: strand(ioContext), resolver(ioContext), socket(ioContext), heartbeatTimer(ioContext), timeoutTimer(ioContext)
 	{
 	}
 	
@@ -113,7 +132,12 @@ public:
 	template <typename Handler, typename ErrorHandler>
 	auto ioHandler(Handler handler, ErrorHandler errorHandler)
 	{
-		return [handler, errorHandler, this](const Error& err, auto&& ... args) { 
+		return [handler, errorHandler, this](const Error& err, auto&& ... args) {
+			if(!isConnected){
+				execute(errorHandler, asio::error::operation_aborted);
+				return;
+			}
+			cancelTimeoutTimer();
 			if(err) 
 				{ execute(errorHandler, err); return; } 
 			if constexpr (std::is_invocable_v<Handler>)
@@ -125,11 +149,13 @@ public:
 	template <typename Buffer, typename Handler>
 	void asyncRead(Buffer buffer, Handler handler)
 	{
+		startTimeoutTimer();
 		asio::async_read(socket, buffer, handler);
 	}
 	template <typename Handler>
 	void asyncRead(const size_t length, Handler handler)
 	{
+		startTimeoutTimer();
 		asio::async_read(socket, asio::buffer(buffer, length), handler);
 	}
 	
@@ -159,11 +185,72 @@ public:
 	
 	/// Timer ///
 	
+	void startTimeoutTimer()
+	{
+		timeoutTimer.expires_after(timeoutDuration);
+		timeoutTimer.async_wait([this](const Error& err){timeoutHandler(err);});
+	}
+	void cancelTimeoutTimer()
+	{
+		timeoutTimer.cancel();
+	}
+	void timeoutHandler(const Error& err)
+	{
+		if(err || !isConnected)
+			return;
+		disconnect();
+		cancelHeartbeat();
+	}
+	
+	void startHeartbeat()
+	{
+		heartbeatTimer.expires_after(heartbeatInterval);
+		heartbeatTimer.async_wait([this](const Error& err){heartbeatHandler(err);});
+	}
+	void cancelHeartbeat()
+	{
+		heartbeatTimer.cancel();
+	}
+	void heartbeatHandler(const Error& err)
+	{
+		if(err || !isConnected)
+			return;
+		Error ignored;
+		asio::write(socket, asio::buffer(&data::HeartbeatCode, sizeof(data::HeartbeatCode)), ignored);
+		startHeartbeat();
+	}
+	
+	void reset()
+	{
+		startHeartbeat();
+		resetState();
+	}
+	
 	
 	/// Basics ///
 	
+	bool getIsConnected()
+	{
+		return isConnected;
+	}
+	
+	void disconnect()
+	{
+		isConnected = false;
+		timeoutTimer.cancel();
+		heartbeatTimer.cancel();
+		Error ignored;
+		socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
+		socket.close();
+		id = false;
+		resetState();
+	}
+	
 	void resolveAndConnect(std::string_view host, std::string_view service, std::function<void(bool)> requestCallback )
 	{
+		if(isConnected)
+			disconnect();
+		
 		resolver.async_resolve(host, service, [=](const Error& err, auto results)
 			{
 				if(err)
@@ -182,6 +269,7 @@ public:
 							return;
 						}
 						log("Connected to ", endpoint);
+						isConnected = true;
 						requestCallback(true);
 					});
 			});
@@ -199,6 +287,13 @@ public:
 	// Register As New Host
 	
 	void registerAsNewHost(data::RegisterNewHost::Request reqHeader, std::function<void(data::IdType)> requestCallback );
+	
+	// Upload Map
+	
+	void uploadMap( fs::path path, std::function<void(bool)> requestCallback );
+	
+	
+	void initiateFileUpload(fs::path path, size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback);
 	
 	
 };
