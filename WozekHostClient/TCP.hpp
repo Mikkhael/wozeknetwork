@@ -291,9 +291,13 @@ public:
 	// Upload Map
 	
 	void uploadMap( fs::path path, std::function<void(bool)> requestCallback );
+	void downloadMap( data::IdType id, fs::path path, std::function<void(bool)> requestCallback );
 	
 	
-	void initiateFileUpload(fs::path path, size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback);
+	// Segmented File Transfer
+	
+	void initiateFileUpload(fs::path path, const size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback);
+	void initiateFileDownload(fs::path path, const size_t id, const size_t maxBigBufferSize, std::function<void(bool)>requestCallback);
 	
 	
 };

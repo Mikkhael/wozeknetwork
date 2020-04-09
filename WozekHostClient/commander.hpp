@@ -193,6 +193,32 @@ What do you want to do?
 	void downloadMapFile()
 	{
 		
+		std::string path;
+		data::IdType id;
+		
+		std::cout << "Input id of the map: ";
+		std::cin >> id;
+		std::cout << "Input path where to save the file: ";
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, path);
+		
+		auto callback = [this](bool res)
+		{
+			tcpConnection.reset();
+			if(res)
+			{
+				std::cout << "Success\n";
+			}
+			else
+			{
+				std::cout << "Failure\n";
+			}
+			postGetCommand();
+		};
+		
+		tcpConnection.cancelHeartbeat();
+		tcpConnection.downloadMap(id, path, callback);
 	}
 	
 };

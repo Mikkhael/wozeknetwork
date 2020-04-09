@@ -15,6 +15,7 @@ void WozekConnectionHandler::operator()()
 	log("New connection");
 	remoteEndpoint = socket.remote_endpoint();
 	
+	//debugHandler();
 	awaitRequest();
 }
 
@@ -191,7 +192,38 @@ void WozekConnectionHandler::finalizeUploadMap(data::UploadMap::RequestHeader he
 
 void WozekConnectionHandler::handleDownloadMapRequest()
 {
-	
+	log("Handling Download Map Request");
+	asyncReadObject<data::DownloadMap::RequestHeader>(asyncBranch(
+	[=](auto& reqHeader)
+	{
+		data::DownloadMap::ResponseHeader resHeader;
+		
+		fs::path path = fileManager.getPathToMapFile(reqHeader.hostId);
+		if(!fs::is_regular_file(path))
+		{
+			log("Map with id ", reqHeader.hostId, " dosen't exist");
+			resHeader.code = data::DownloadMap::ResponseHeader::DenyAccessCode;
+			asyncWriteObject(resHeader, asyncBranch(awaitRequest));
+			return;
+		}
+		
+		// Request accepted
+		
+		resHeader.code = data::DownloadMap::ResponseHeader::AcceptCode;
+		resHeader.totalMapSize = fs::file_size(path);
+		
+		log("Sending map with id ", reqHeader.hostId, " and size of ", resHeader.totalMapSize, " bytes");
+		
+		asyncWriteObject(resHeader, asyncBranch([=]{ initiateFileTransferSend(path, [=](bool success){
+			if(success)
+				finalizeDownloadMap(reqHeader);
+		}); }));
+	}));
+}
+void WozekConnectionHandler::finalizeDownloadMap(data::DownloadMap::RequestHeader header)
+{
+	log("Map downloaded with id", header.hostId, " completed successfully");
+	awaitRequest();
 }
 
 
@@ -206,7 +238,7 @@ void WozekConnectionHandler::initiateFileTransferReceive(const size_t totalSize,
 	state->bigBuffer.resize(std::min(totalSize, maxBigBufferSize) );	
 	state->path = path;
 	
-	log("Initiating map upload | ", totalSize, " bytes");
+	log("Initiating file sending | ", totalSize, " bytes | ", path);
 	
 	auto flushBufferToFile = [=](auto callback)
 	{
@@ -286,6 +318,106 @@ void WozekConnectionHandler::initiateFileTransferReceive(const size_t totalSize,
 			asyncWriteObject(ackHeader, asyncBranch(callback));
 		});
 }
+
+void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::function<void(bool)> mainCallback, bool silent)
+{
+	using State = States::FileTransferSendThreadsafe;
+	State* state = setState<State>();
+	
+	state->path = path;
+	const size_t totalSize = fs::file_size(path);
+		
+	const size_t maxBigBufferSize = 4 * 1024 * 1024;
+	state->bigBuffer.resize(std::min(totalSize, maxBigBufferSize) );
+	
+	state->bufferSequence[0] = asio::buffer(buffer, sizeof(data::SegmentedTransfer::SegmentHeader));
+	
+	log("Initiating file sending | ", totalSize, " bytes | ", path);
+	
+	auto tryReloadBuffer = [=](auto callback)
+	{
+		if(state->getRemainingBigBufferSize() != 0)
+		{
+			callback();
+			return;
+		}
+		
+		asyncPost(fileManager.getStrand(), [=]{
+			const size_t length = std::min(state->bigBuffer.size(), totalSize - state->totalBytesSent);
+			if(!fileManager.writeFileToBuffer(state->path, state->totalBytesSent, state->bigBuffer.data(), length))
+			{
+				logError("Cannot read from file ", state->path);
+				mainCallback(false);
+				return;
+			}
+			state->bigBufferTop = 0;
+			asyncPost(callback);
+		});
+	};
+	
+	segFileTransfer::sendFile(totalSize, 1300,
+		[=](auto& header, auto callback){
+			std::cout << "Header: " << header.size << std::endl;
+			saveObjectToMainBuffer(header);
+			callback();
+		},
+		[=](const bool withHeader, const size_t length, auto callback){
+			
+			tryReloadBuffer([=]{
+				
+				std::cout << "Length: " << length << " " << withHeader << std::endl;
+				
+				assert( length > 0 );
+				assert( state->totalBytesSent + length <= totalSize );
+				
+				const size_t bytesToSend = std::min(length, state->getRemainingBigBufferSize());
+				state->bufferSequence[1] = asio::buffer(state->getBigBufferEnd(), bytesToSend);
+				state->advance(bytesToSend);
+				
+				if(withHeader)
+					asyncWriteFromBuffer(state->bufferSequence, asyncBranch([=]{
+						callback(bytesToSend);
+					}));
+				else
+					asyncWriteFromBuffer(state->bufferSequence[1], asyncBranch([=]{
+						callback(bytesToSend);
+					}));
+			});
+		},
+		[=](auto callback){
+			asyncReadObject<data::SegmentedTransfer::SegmentAck>(asyncBranch([=](auto ackHeader){
+				std::cout << "Ack: " << ackHeader.code << std::endl;
+				if(ackHeader.code == data::SegmentedTransfer::ErrorCode)
+				{
+					logError("Unknown error during file transimison");
+					mainCallback(false);
+					return;
+				}
+				else if(state->totalBytesSent == totalSize && ackHeader.code == data::SegmentedTransfer::FinishedCode)
+				{
+					log("File transfer completed (", totalSize, " bytes sent)");
+					mainCallback(true);
+					return;
+				}
+				else if(ackHeader.code == data::SegmentedTransfer::ContinueCode)
+				{
+					if(!silent){
+						const unsigned int newProgress = 100.f * float(state->totalBytesSent) / totalSize;
+						if(newProgress > state->progress){
+							log(state->totalBytesSent, " / ", totalSize, " bytes sent (", newProgress, "%)");
+							state->progress = newProgress;
+						}
+					}
+					callback();
+					return;
+				}
+				logError("Unexpected ack code received");
+				mainCallback(false);
+			}));
+		});
+}
+
+
 
 
 /// Other ///

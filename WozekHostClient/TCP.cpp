@@ -72,7 +72,7 @@ void Connection::uploadMap(fs::path path, std::function<void(bool)>requestCallba
 				requestCallback(false);
 				return;
 			}
-			if(resHeader.code == data::UploadMap::ResponseHeader::DenyAccessCode)
+			if(resHeader.code == data::UploadMap::ResponseHeader::InvalidSizeCode)
 			{
 				log("Invalid size specified");
 				requestCallback(false);
@@ -87,7 +87,138 @@ void Connection::uploadMap(fs::path path, std::function<void(bool)>requestCallba
 	
 }
 
-void Connection::initiateFileUpload(fs::path path, size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback)
+void Connection::downloadMap(data::IdType id, fs::path path, std::function<void(bool)>requestCallback)
+{
+	auto errorHandler = [=](const Error& err)
+	{
+		logError(err);
+		requestCallback(false);
+	};
+	
+	data::DownloadMap::RequestHeader reqHeader;
+	reqHeader.hostId = id;
+	
+	size_t off = 0;
+	off += writeObjectToBuffer(data::DownloadMap::Code, off);
+	off += writeObjectToBuffer(reqHeader, off);
+	asyncWrite(off, ioHandler(
+	[=]{
+		asyncRead(sizeof(data::DownloadMap::ResponseHeader), ioHandler([=]{
+			data::DownloadMap::ResponseHeader resHeader;
+			readObjectFromBuffer(resHeader);
+			if(resHeader.code == data::DownloadMap::ResponseHeader::DenyAccessCode)
+			{
+				log("Access denied");
+				requestCallback(false);
+				return;
+			}
+			if(resHeader.code != data::DownloadMap::ResponseHeader::AcceptCode)
+			{
+				log("Unknown response code received");
+				requestCallback(false);
+				return;
+			}
+			
+			log("Initiating download of file ", path);
+			initiateFileDownload(path, resHeader.totalMapSize, 4*1024*1024, requestCallback);
+			
+		}, errorHandler));
+	}, errorHandler ));
+	
+}
+
+void Connection::initiateFileDownload(fs::path path, const size_t totalSize, const size_t maxBigBufferSize, std::function<void(bool)>requestCallback)
+{
+	auto errorHandler = [=](const Error& err)
+	{
+		logError(err);
+		requestCallback(false);
+	};
+	
+	using State = States::FileTransferReceive;
+	State* state = setState<State>();
+	
+	state->file.open(path, std::ios::binary);
+	if(!state->file.is_open())
+	{
+		logError("Cannot open file: ", path);
+		requestCallback(false);
+		return;
+	}
+	
+	const size_t bigBufferSize = std::min(totalSize, maxBigBufferSize);
+	state->bigBuffer.resize(bigBufferSize);
+	
+	const auto flushBufferToFile = [=]()
+	{
+		if(state->bigBufferTop == 0)
+			return true;
+		const size_t bytsToWrite = std::min(totalSize - state->totalBytesReceived, maxBigBufferSize);
+		state->file.write(state->bigBuffer.data(), bytsToWrite);
+		state->bigBufferTop = 0;
+		return state->file.fail();
+	};
+	
+	segFileTransfer::readFile(totalSize, 
+		[=](auto callback){
+			asyncRead(sizeof(data::SegmentedTransfer::SegmentHeader), ioHandler([=]{ callback(buffer.data()); }, errorHandler));
+		},
+		[=](const size_t remainingSegmentSize, auto callback){
+			
+			assert( remainingSegmentSize + state->totalBytesReceived <= totalSize);
+			
+			if(flushBufferToFile()){
+				logError("Cannot write to file ");
+				requestCallback(false);
+				return;
+			}
+			
+			const size_t bytesToRead = std::min(remainingSegmentSize, state->getRemainingBigBufferSize());
+			asyncRead(asio::buffer(state->getBigBufferEnd(), bytesToRead), ioHandler([=]{
+				state->advance(bytesToRead);
+				callback(bytesToRead);
+			}, errorHandler));
+			
+		},
+		[=](const auto& header, auto callback){
+			if(header.size + state->totalBytesReceived > totalSize)
+			{
+				logError("Total segments size exceed file size");
+				requestCallback(false);
+				return;
+			}
+			callback();
+		},
+		[=](auto callback){
+			data::SegmentedTransfer::SegmentAck ackHeader;
+			if(state->totalBytesReceived == totalSize)
+			{
+				if(flushBufferToFile()){
+					logError("Cannot write to file ");
+					requestCallback(false);
+					return;
+				}
+				
+				log("File transfer completed");
+				ackHeader.code = data::SegmentedTransfer::FinishedCode;
+				writeObjectToBuffer(ackHeader);
+				asyncWrite(sizeof(ackHeader), ioHandler([=]{ requestCallback(true); }, errorHandler));
+				return;
+			}
+			const unsigned int currentProgress = 100.f * float(state->totalBytesReceived) / totalSize;
+			if(currentProgress > state->progress)
+			{
+				state->progress = currentProgress;
+				log("Received ", state->totalBytesReceived, " / ", totalSize, " bytes (", currentProgress, "%)");
+			}
+			ackHeader.code = data::SegmentedTransfer::ContinueCode;
+			writeObjectToBuffer(ackHeader);
+			asyncWrite(sizeof(ackHeader), ioHandler([=]{ callback(); }, errorHandler));
+		});
+}
+
+
+void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback)
 {
 	auto errorHandler = [=](const Error& err)
 	{

@@ -13,6 +13,18 @@ namespace States
 {
 	struct Empty {};
 	
+	struct FileTransferReceive
+	{
+		std::ofstream file;
+		std::vector<char> bigBuffer;
+		size_t bigBufferTop = 0;
+		size_t totalBytesReceived = 0;
+		unsigned int progress = 0;
+		
+		size_t getRemainingBigBufferSize() {return bigBuffer.size() - bigBufferTop;}
+		char* getBigBufferEnd() {return bigBuffer.data() + bigBufferTop;}
+		void advance(const size_t bytes) {bigBufferTop += bytes; totalBytesReceived += bytes;}
+	};
 	struct FileTransferSend
 	{
 		std::ifstream file;
@@ -31,6 +43,7 @@ namespace States
 	{
 		fs::path path;
 		std::vector<char> bigBuffer;
+		
 		size_t bigBufferTop = 0;
 		size_t totalBytesRead = 0;
 		unsigned int progress = 0;
@@ -39,9 +52,23 @@ namespace States
 		char* getBigBufferEnd() {return bigBuffer.data() + bigBufferTop;}
 		void advance(const size_t bytes) {bigBufferTop += bytes; totalBytesRead += bytes;}
 	};
+	struct FileTransferSendThreadsafe
+	{
+		fs::path path;
+		std::vector<char> bigBuffer;
+		std::array<asio::const_buffer, 2> bufferSequence;
+		
+		size_t bigBufferTop = 0;
+		size_t totalBytesSent = 0;
+		unsigned int progress = 0;
+		
+		size_t getRemainingBigBufferSize() {return bigBuffer.size() - bigBufferTop;}
+		char* getBigBufferEnd() {return bigBuffer.data() + bigBufferTop;}
+		void advance(const size_t bytes) {bigBufferTop += bytes; totalBytesSent += bytes;}
+	};
 	
 	
 	
 	
-	using Type = std::variant<Empty, FileTransferSend, FileTransferReceiveThreadsafe>;
+	using Type = std::variant<Empty, FileTransferReceive, FileTransferSend, FileTransferReceiveThreadsafe, FileTransferSendThreadsafe>;
 }

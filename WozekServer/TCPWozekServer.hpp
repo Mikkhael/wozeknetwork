@@ -16,7 +16,7 @@
 namespace tcp
 {
 
-constexpr bool ShutdownOnDestruction = false;
+constexpr bool ShutdownOnDestruction = true;
 
 class WozekConnectionHandler
 	: public std::enable_shared_from_this<WozekConnectionHandler>
@@ -35,6 +35,13 @@ private:
 	
 	asio::steady_timer timeoutTimer;
 	std::chrono::seconds timeoutDuration = std::chrono::seconds(35);
+	
+	asio::steady_timer debugTimer;
+	void debugHandler() { 
+		std::cout << shared_from_this().use_count() << std::endl;
+		debugTimer.expires_after(std::chrono::seconds(1));
+		debugTimer.async_wait([=](const Error& err){debugHandler();});
+	}
 	
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer = {0};
@@ -56,7 +63,7 @@ private:
 	
 public:
 	WozekConnectionHandler(asio::io_context& ioContext)
-		: socket(ioContext), timeoutTimer(ioContext)
+		: socket(ioContext), timeoutTimer(ioContext), debugTimer(ioContext)
 	{
 	}
 	
@@ -85,6 +92,8 @@ public:
 	
 	void operator()();
 private:
+	
+	
 	/// Logging
 	
 	std::ostream& printPrefix(std::ostream& os) // TODO: add timestamp
@@ -142,7 +151,7 @@ private:
 	// Download Map
 	
 	void handleDownloadMapRequest();
-	void finalizeDownloadMap();
+	void finalizeDownloadMap(data::DownloadMap::RequestHeader header);
 	
 	/// Async and Helper Functions ///
 	
@@ -208,6 +217,11 @@ private:
 	void asyncWriteFromMemory(const char* buffer, size_t length, Handler handler)
 	{
 		asio::async_write(socket, asio::buffer(buffer, length), handler);
+	}
+	template<typename Buffer, typename Handler> 
+	void asyncWriteFromBuffer(Buffer&& buffer, Handler handler)
+	{
+		asio::async_write(socket, std::forward<Buffer>(buffer), handler);
 	}
 	template<typename Handler> 
 	void asyncWriteFromMainBuffer(size_t length, Handler handler)

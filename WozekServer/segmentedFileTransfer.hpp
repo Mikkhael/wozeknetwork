@@ -13,8 +13,12 @@ namespace segFileTransfer
 		headerConsumer(header, [=]
 		{
 			sender(true, header.size, [=](const size_t sentBytes){
+				assert( header.size >= sentBytes );
 				sendSegmentData(header.size - sentBytes, sender, [=]{
-					ackHandler([=]{ sendFile(remainingFileSize - header.size, maxSegmentLength, headerConsumer, sender, ackHandler); });
+					ackHandler([=]{
+						assert( remainingFileSize > header.size );
+						sendFile(remainingFileSize - header.size, maxSegmentLength, headerConsumer, sender, ackHandler);
+					});
 				});
 			});
 		});
@@ -30,7 +34,10 @@ namespace segFileTransfer
 		}
 		
 		sender(false, remainingSegmentSize, [=](const size_t sentBytes)
-			{ sendSegmentData(remainingSegmentSize - sentBytes, sender, callback); });
+		{ 
+			assert( remainingSegmentSize >= sentBytes );
+			sendSegmentData(remainingSegmentSize - sentBytes, sender, callback);
+		});
 	}
 	
 	
