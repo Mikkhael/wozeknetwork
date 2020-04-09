@@ -122,6 +122,11 @@ private:
 		sendTerminatingMessageFromMainBuffer(sizeof(object));
 	}	
 	
+	// SegFmented ile Transfer
+	
+	void initiateFileTransferReceive(const size_t totalSize, fs::path path, std::function<void(bool)> callback, bool silent = false);
+	void initiateFileTransferSend(fs::path path, std::function<void(bool)> callback, bool silent = false);
+	
 	// Register host
 	
 	void handleRegisterHostRequest();
@@ -132,13 +137,11 @@ private:
 	// Upload Map
 	
 	void handleUploadMapRequest();
-	void initiateMapFileUpload(data::UploadMap::RequestHeader header, bool silent = false);
 	void finalizeUploadMap(data::UploadMap::RequestHeader header);
 	
 	// Download Map
 	
 	void handleDownloadMapRequest();
-	void initiateMapFileDownload(data::DownloadMap::RequestHeader header, bool silent = false);
 	void finalizeDownloadMap();
 	
 	/// Async and Helper Functions ///

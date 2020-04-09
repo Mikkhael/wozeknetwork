@@ -169,22 +169,44 @@ void WozekConnectionHandler::handleUploadMapRequest()
 		}
 		
 		// Request accepted
+		
+		fs::path path = fileManager.getPathToMapFile(reqHeader.hostId);
+		fileManager.deleteMapFile(reqHeader.hostId);
+		
 		resHeader.code = data::UploadMap::ResponseHeader::AcceptCode;
-		asyncWriteObject(resHeader, asyncBranch([=]{ initiateMapFileUpload(reqHeader); }));
+		asyncWriteObject(resHeader, asyncBranch([=]{ initiateFileTransferReceive(reqHeader.totalMapSize, path, [=](bool success){
+			if(success)
+				finalizeUploadMap(reqHeader);
+		}); }));
 	}));
 }
 
-void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeader reqHeader, bool silent)
+
+void WozekConnectionHandler::finalizeUploadMap(data::UploadMap::RequestHeader header)
+{
+	log("Map upload with id", header.hostId, " and size ", header.totalMapSize, ", completed successfully");
+	awaitRequest();
+}
+
+
+void WozekConnectionHandler::handleDownloadMapRequest()
+{
+	
+}
+
+
+/// File Transfer ///
+
+void WozekConnectionHandler::initiateFileTransferReceive(const size_t totalSize, fs::path path, std::function<void(bool)> mainCallback,  bool silent)
 {
 	using State = States::FileTransferReceiveThreadsafe;
 	State* state = setState<State>();
 	
 	const size_t maxBigBufferSize = 4 * 1024 * 1024;
-	state->bigBuffer.resize(std::min(reqHeader.totalMapSize, maxBigBufferSize) );	
-	state->path = fileManager.getPathToMapFile(reqHeader.hostId);
-	fileManager.deleteMapFile(reqHeader.hostId);
+	state->bigBuffer.resize(std::min(totalSize, maxBigBufferSize) );	
+	state->path = path;
 	
-	log("Initiating map upload | ", reqHeader.totalMapSize, " bytes");
+	log("Initiating map upload | ", totalSize, " bytes");
 	
 	auto flushBufferToFile = [=](auto callback)
 	{
@@ -198,6 +220,7 @@ void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeade
 			if(!fileManager.appendBufferToFile(state->path, state->bigBuffer.data(), state->bigBufferTop))
 			{
 				logError("Cannot write to file ", state->path);
+				mainCallback(false);
 				return;
 			}
 			state->bigBufferTop = 0;
@@ -205,7 +228,7 @@ void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeade
 		});
 	};
 	
-	segFileTransfer::readFile(reqHeader.totalMapSize,
+	segFileTransfer::readFile(totalSize,
 		[=](auto callback){
 			asyncReadToMainBuffer(sizeof(data::SegmentedTransfer::SegmentHeader), asyncBranch([=]{
 				callback(buffer.data());
@@ -227,32 +250,33 @@ void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeade
 			}));
 		},
 		[=](const data::SegmentedTransfer::SegmentHeader& header, auto callback){
-			if(header.size + state->totalBytesRead > reqHeader.totalMapSize)
+			if(header.size + state->totalBytesRead > totalSize)
 			{
 				logError("Total segment sizes exceed file size");
+				mainCallback(false);
 				return;
 			}
 			callback();
 		},
 		[=](auto callback){
-			if(state->totalBytesRead == reqHeader.totalMapSize)
+			if(state->totalBytesRead == totalSize)
 			{
 				flushBufferToFile([=]{
-					log("File transfer completed (", reqHeader.totalMapSize, " bytes received)");
+					log("File transfer completed (", totalSize, " bytes received)");
 					data::SegmentedTransfer::SegmentAck ackHeader;
 					ackHeader.code = data::SegmentedTransfer::FinishedCode;
 					asyncWriteObject(ackHeader, asyncBranch([=]
-						{ finalizeUploadMap(reqHeader); }));
+						{ mainCallback(true);}));
 				});
 				return;
 			}
 			
 			if(!silent)
 			{
-				const unsigned int newProgress = 100.f * float(state->totalBytesRead) / reqHeader.totalMapSize;
+				const unsigned int newProgress = 100.f * float(state->totalBytesRead) / totalSize;
 				if(newProgress > state->progress)
 				{
-					log(state->totalBytesRead, " / ", reqHeader.totalMapSize, " bytes received (", newProgress, "%)");
+					log(state->totalBytesRead, " / ", totalSize, " bytes received (", newProgress, "%)");
 					state->progress = newProgress;
 				}
 			}
@@ -262,19 +286,6 @@ void WozekConnectionHandler::initiateMapFileUpload(data::UploadMap::RequestHeade
 			asyncWriteObject(ackHeader, asyncBranch(callback));
 		});
 }
-
-void WozekConnectionHandler::finalizeUploadMap(data::UploadMap::RequestHeader header)
-{
-	log("Map upload with id", header.hostId, " and size ", header.totalMapSize, ", completed successfully");
-	awaitRequest();
-}
-
-
-void WozekConnectionHandler::handleDownloadMapRequest()
-{
-	
-}
-
 
 
 /// Other ///
