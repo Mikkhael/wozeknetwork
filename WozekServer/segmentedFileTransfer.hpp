@@ -35,6 +35,7 @@ namespace segFileTransfer
 		
 		sender(false, remainingSegmentSize, [=](const size_t sentBytes)
 		{ 
+			assert( sentBytes > 0 );
 			assert( remainingSegmentSize >= sentBytes );
 			sendSegmentData(remainingSegmentSize - sentBytes, sender, callback);
 		});

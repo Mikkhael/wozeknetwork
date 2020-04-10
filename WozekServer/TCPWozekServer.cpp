@@ -324,12 +324,12 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 	using State = States::FileTransferSendThreadsafe;
 	State* state = setState<State>();
 	
-	state->path = path;
 	const size_t totalSize = fs::file_size(path);
-		
 	const size_t maxBigBufferSize = 4 * 1024 * 1024;
-	state->bigBuffer.resize(std::min(totalSize, maxBigBufferSize) );
 	
+	state->path = path;
+	state->bigBuffer.resize(std::min(totalSize, maxBigBufferSize) );
+	state->bigBufferTop = state->bigBuffer.size();
 	state->bufferSequence[0] = asio::buffer(buffer, sizeof(data::SegmentedTransfer::SegmentHeader));
 	
 	log("Initiating file sending | ", totalSize, " bytes | ", path);
@@ -357,15 +357,13 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 	
 	segFileTransfer::sendFile(totalSize, 1300,
 		[=](auto& header, auto callback){
-			std::cout << "Header: " << header.size << std::endl;
+			//std::cout << "Header: " << header.size << std::endl;
 			saveObjectToMainBuffer(header);
 			callback();
 		},
 		[=](const bool withHeader, const size_t length, auto callback){
 			
 			tryReloadBuffer([=]{
-				
-				std::cout << "Length: " << length << " " << withHeader << std::endl;
 				
 				assert( length > 0 );
 				assert( state->totalBytesSent + length <= totalSize );
@@ -385,8 +383,8 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 			});
 		},
 		[=](auto callback){
-			asyncReadObject<data::SegmentedTransfer::SegmentAck>(asyncBranch([=](auto ackHeader){
-				std::cout << "Ack: " << ackHeader.code << std::endl;
+			asyncReadObject<data::SegmentedTransfer::SegmentAck>(asyncBranch([=](auto& ackHeader){
+				//std::cout << "Ack: " << ackHeader.code << std::endl;
 				if(ackHeader.code == data::SegmentedTransfer::ErrorCode)
 				{
 					logError("Unknown error during file transimison");

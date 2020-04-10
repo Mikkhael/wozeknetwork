@@ -16,8 +16,6 @@
 namespace tcp
 {
 
-constexpr bool ShutdownOnDestruction = true;
-
 class WozekConnectionHandler
 	: public std::enable_shared_from_this<WozekConnectionHandler>
 {
@@ -69,13 +67,9 @@ public:
 	
 	~WozekConnectionHandler()
 	{
-		if constexpr(ShutdownOnDestruction)
-		{
-			if(!isShutDown)
-			{
-				shutdownHandler();
-			}
-		}
+		if(!isShutDown)
+			shutConnection();
+		log("Connection Terminated");
 	}
 	
 	/// Getters and Setters
@@ -290,10 +284,7 @@ private:
 		timeoutTimer.cancel();
 		socket.shutdown(Socket::shutdown_type::shutdown_both);
 		
-		if constexpr (!ShutdownOnDestruction)
-		{
-			shutdownHandler();
-		}
+		shutdownHandler();
 		
 		Error ignoredError;
 		socket.close(ignoredError);

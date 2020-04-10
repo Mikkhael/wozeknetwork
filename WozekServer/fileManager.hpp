@@ -31,6 +31,10 @@ public:
 		}
 		
 		file.write(buffer, length);
+		if(file.fail())
+		{
+			return false;
+		}
 		file.close();
 		return true;
 	}
@@ -57,6 +61,10 @@ public:
 		}
 		
 		file.read(buffer, length);
+		if(file.fail())
+		{
+			return false;
+		}
 		file.close();
 		return true;
 	}

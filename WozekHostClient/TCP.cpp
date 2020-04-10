@@ -148,13 +148,13 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 	
 	const size_t bigBufferSize = std::min(totalSize, maxBigBufferSize);
 	state->bigBuffer.resize(bigBufferSize);
+	state->bigBufferTop = 0;
 	
-	const auto flushBufferToFile = [=]()
+	const auto flushBufferToFile = [=]
 	{
 		if(state->bigBufferTop == 0)
-			return true;
-		const size_t bytsToWrite = std::min(totalSize - state->totalBytesReceived, maxBigBufferSize);
-		state->file.write(state->bigBuffer.data(), bytsToWrite);
+			return false;
+		state->file.write(state->bigBuffer.data(), state->bigBufferTop);
 		state->bigBufferTop = 0;
 		return state->file.fail();
 	};
@@ -168,7 +168,7 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 			assert( remainingSegmentSize + state->totalBytesReceived <= totalSize);
 			
 			if(flushBufferToFile()){
-				logError("Cannot write to file ");
+				logError("Cannot write to file");
 				requestCallback(false);
 				return;
 			}
