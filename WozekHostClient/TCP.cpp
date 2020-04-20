@@ -4,12 +4,12 @@
 namespace tcp
 {
 
-void Connection::registerAsNewHost(data::RegisterNewHost::Request reqHeader, std::function<void(data::IdType)> requestCallback )
+void Connection::registerAsNewHost(data::RegisterNewHost::Request reqHeader, Callback requestCallback )
 {	
 	auto errorHandler = [=](const Error& err)
 	{
 		logError(err);
-		requestCallback(0);
+		requestCallback(CallbackCode::CriticalError);
 	};
 	
 	log("Initiating Registration As New Host");
@@ -27,30 +27,31 @@ void Connection::registerAsNewHost(data::RegisterNewHost::Request reqHeader, std
 			
 			if(resHeader.code == data::RegisterNewHost::Response::Failure)
 			{
-				requestCallback(0);
+				requestCallback(CallbackCode::Error);
 				return;
 			}
 			
 			id = resHeader.id;
-			requestCallback(id);
+			log("Successfully registerd as host with id: ", id);
+			requestCallback(CallbackCode::Success);
 			return;
 			
 		}, errorHandler));
 	}, errorHandler));
 }
 
-void Connection::uploadMap(fs::path path, std::function<void(bool)>requestCallback)
+void Connection::uploadMap(fs::path path, Callback requestCallback)
 {
 	auto errorHandler = [=](const Error& err)
 	{
 		logError(err);
-		requestCallback(false);
+		requestCallback(CallbackCode::CriticalError);
 	};
 		
 	if(!fs::is_regular_file(path))
 	{
 		logError("File dosen't exist: ", path);
-		requestCallback(false);
+		requestCallback(CallbackCode::Error);
 		return;
 	}
 	
@@ -69,13 +70,19 @@ void Connection::uploadMap(fs::path path, std::function<void(bool)>requestCallba
 			if(resHeader.code == data::UploadMap::ResponseHeader::DenyAccessCode)
 			{
 				log("Access denied");
-				requestCallback(false);
+				requestCallback(CallbackCode::Error);
 				return;
 			}
 			if(resHeader.code == data::UploadMap::ResponseHeader::InvalidSizeCode)
 			{
 				log("Invalid size specified");
-				requestCallback(false);
+				requestCallback(CallbackCode::Error);
+				return;
+			}
+			if(resHeader.code != data::DownloadMap::ResponseHeader::AcceptCode)
+			{
+				log("Unknown response code received");
+				requestCallback(CallbackCode::CriticalError);
 				return;
 			}
 			
@@ -87,13 +94,21 @@ void Connection::uploadMap(fs::path path, std::function<void(bool)>requestCallba
 	
 }
 
-void Connection::downloadMap(data::IdType id, fs::path path, std::function<void(bool)>requestCallback)
+void Connection::downloadMap(data::IdType id, fs::path path, Callback requestCallback)
 {
 	auto errorHandler = [=](const Error& err)
 	{
 		logError(err);
-		requestCallback(false);
+		requestCallback(CallbackCode::CriticalError);
 	};
+	
+	std::ofstream fileTest(path);
+	if(!fileTest.is_open())
+	{
+		logError("Cannot open file: ", path);
+		requestCallback(CallbackCode::Error);
+		return;
+	}
 	
 	data::DownloadMap::RequestHeader reqHeader;
 	reqHeader.hostId = id;
@@ -109,13 +124,13 @@ void Connection::downloadMap(data::IdType id, fs::path path, std::function<void(
 			if(resHeader.code == data::DownloadMap::ResponseHeader::DenyAccessCode)
 			{
 				log("Access denied");
-				requestCallback(false);
+				requestCallback(CallbackCode::Error);
 				return;
 			}
 			if(resHeader.code != data::DownloadMap::ResponseHeader::AcceptCode)
 			{
 				log("Unknown response code received");
-				requestCallback(false);
+				requestCallback(CallbackCode::CriticalError);
 				return;
 			}
 			
@@ -127,12 +142,12 @@ void Connection::downloadMap(data::IdType id, fs::path path, std::function<void(
 	
 }
 
-void Connection::initiateFileDownload(fs::path path, const size_t totalSize, const size_t maxBigBufferSize, std::function<void(bool)>requestCallback)
+void Connection::initiateFileDownload(fs::path path, const size_t totalSize, const size_t maxBigBufferSize, Callback requestCallback)
 {
 	auto errorHandler = [=](const Error& err)
 	{
 		logError(err);
-		requestCallback(false);
+		requestCallback(CallbackCode::CriticalError);
 	};
 	
 	using State = States::FileTransferReceive;
@@ -142,7 +157,7 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 	if(!state->file.is_open())
 	{
 		logError("Cannot open file: ", path);
-		requestCallback(false);
+		requestCallback(CallbackCode::CriticalError);
 		return;
 	}
 	
@@ -168,8 +183,8 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 			assert( remainingSegmentSize + state->totalBytesReceived <= totalSize);
 			
 			if(flushBufferToFile()){
-				logError("Cannot write to file");
-				requestCallback(false);
+				logError("Cannot write to file: ", path);
+				requestCallback(CallbackCode::CriticalError);
 				return;
 			}
 			
@@ -184,7 +199,7 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 			if(header.size + state->totalBytesReceived > totalSize)
 			{
 				logError("Total segments size exceed file size");
-				requestCallback(false);
+				requestCallback(CallbackCode::CriticalError);
 				return;
 			}
 			callback();
@@ -194,15 +209,15 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 			if(state->totalBytesReceived == totalSize)
 			{
 				if(flushBufferToFile()){
-					logError("Cannot write to file ");
-					requestCallback(false);
+					logError("Cannot write to file: ", path);
+					requestCallback(CallbackCode::CriticalError);
 					return;
 				}
 				
 				log("File transfer completed");
 				ackHeader.code = data::SegmentedTransfer::FinishedCode;
 				writeObjectToBuffer(ackHeader);
-				asyncWrite(sizeof(ackHeader), ioHandler([=]{ requestCallback(true); }, errorHandler));
+				asyncWrite(sizeof(ackHeader), ioHandler([=]{ requestCallback(CallbackCode::Success); }, errorHandler));
 				return;
 			}
 			const unsigned int currentProgress = 100.f * float(state->totalBytesReceived) / totalSize;
@@ -218,12 +233,12 @@ void Connection::initiateFileDownload(fs::path path, const size_t totalSize, con
 }
 
 
-void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback)
+void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize, const size_t maxSegmentLength, Callback requestCallback)
 {
 	auto errorHandler = [=](const Error& err)
 	{
 		logError(err);
-		requestCallback(false);
+		requestCallback(CallbackCode::CriticalError);
 	};
 	
 	using State = States::FileTransferSend;
@@ -235,7 +250,7 @@ void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize
 	if(!state->file.is_open())
 	{
 		logError("Cannot open file: ", path);
-		requestCallback(false);
+		requestCallback(CallbackCode::CriticalError);
 		return;
 	}
 	
@@ -246,8 +261,8 @@ void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize
 	state->file.read(state->bigBuffer.data(), bigBufferSize);
 	if(state->file.fail())
 	{
-		logError("Cannot read from file a");
-		requestCallback(false);
+		logError("Cannot read from file: ", path);
+		requestCallback(CallbackCode::CriticalError);
 		return;
 	}
 	
@@ -271,8 +286,8 @@ void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize
 			state->file.read(state->bigBuffer.data(), toReadFromFile);
 			if(state->file.fail())
 			{
-				logError("Cannot read from file");
-				requestCallback(false);
+				logError("Cannot read from file: ", path);
+				requestCallback(CallbackCode::CriticalError);
 				return;
 			}
 		}
@@ -295,13 +310,13 @@ void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize
 			if(ackHeader.code == data::SegmentedTransfer::ErrorCode)
 			{
 				logError("File transfer failed");
-				requestCallback(false);
+				requestCallback(CallbackCode::Error);
 				return;
 			}
 			else if(state->totalBytesSent == totalSize && ackHeader.code == data::SegmentedTransfer::FinishedCode)
 			{
 				log("Sent all ", totalSize, " bytes successfully");
-				requestCallback(true);
+				requestCallback(CallbackCode::Success);
 				return;
 			}
 			else if(ackHeader.code == data::SegmentedTransfer::ContinueCode)
@@ -317,7 +332,7 @@ void Connection::initiateFileUpload(fs::path path, const size_t maxBigBufferSize
 			}
 			
 			logError("Unexpected ack code received");
-			requestCallback(false);
+			requestCallback(CallbackCode::CriticalError);
 			
 		} ,errorHandler));
 	});

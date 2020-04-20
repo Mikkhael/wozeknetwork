@@ -10,6 +10,8 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
+#include "logging.hpp"
+#include "config.hpp"
 #include "DatabaseManager.hpp"
 #include "TCPWozekServer.hpp"
 

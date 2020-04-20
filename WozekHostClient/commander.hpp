@@ -46,7 +46,27 @@ What do you want to do?
 =============
 )";
 	}
-
+	
+	auto getDefaultCallback()
+	{
+		return [this](const tcp::Connection::CallbackCode r){
+			tcpConnection.reset();
+			if(r == tcp::Connection::CallbackCode::Success)
+			{
+				std::cout << "Success\n";
+			}
+			else if(r == tcp::Connection::CallbackCode::Error)
+			{
+				std::cout << "Error\n";
+			}
+			else if(r == tcp::Connection::CallbackCode::CriticalError)
+			{
+				std::cout << "Critical Error. Disconnecting.\n";
+				tcpConnection.disconnect();
+			}
+			postGetCommand();
+		};
+	}
 
 	void getCommand()
 	{
@@ -108,22 +128,8 @@ What do you want to do?
 		
 		std::cout << "Connecting...\n";
 		
-		auto callback = [=](bool result)
-		{
-			tcpConnection.reset();
-			if(result)
-			{
-				std::cout << "Success\n";
-			}
-			else
-			{
-				std::cout << "Failure\n";
-			}
-			postGetCommand();
-		};
-		
 		tcpConnection.cancelHeartbeat();
-		tcpConnection.resolveAndConnect(ip, port, callback);
+		tcpConnection.resolveAndConnect(ip, port, getDefaultCallback());
 	}
 
 
@@ -144,22 +150,8 @@ What do you want to do?
 		header.id = id;
 		std::memcpy(&header.name, name.data(), sizeof(header.name));
 		
-		auto callback = [this](data::IdType id)
-		{
-			tcpConnection.reset();
-			if(id == 0)
-			{
-				std::cout << "Failure\n";
-			}
-			else
-			{
-				std::cout << "Success\n Id: " << id << '\n';
-			}
-			postGetCommand();
-		};
-		
 		tcpConnection.cancelHeartbeat();
-		tcpConnection.registerAsNewHost(header, callback);
+		tcpConnection.registerAsNewHost(header, getDefaultCallback());
 	}
 
 	void sendMapFile()
@@ -171,23 +163,8 @@ What do you want to do?
 			while(std::cin.peek() == '\n') std::cin.get();
 		std::getline(std::cin, path);
 		
-		
-		auto callback = [this](bool res)
-		{
-			tcpConnection.reset();
-			if(res)
-			{
-				std::cout << "Success\n";
-			}
-			else
-			{
-				std::cout << "Failure\n";
-			}
-			postGetCommand();
-		};
-		
 		tcpConnection.cancelHeartbeat();
-		tcpConnection.uploadMap(path, callback);
+		tcpConnection.uploadMap(path, getDefaultCallback());
 	}
 	
 	void downloadMapFile()
@@ -203,22 +180,8 @@ What do you want to do?
 			while(std::cin.peek() == '\n') std::cin.get();
 		std::getline(std::cin, path);
 		
-		auto callback = [this](bool res)
-		{
-			tcpConnection.reset();
-			if(res)
-			{
-				std::cout << "Success\n";
-			}
-			else
-			{
-				std::cout << "Failure\n";
-			}
-			postGetCommand();
-		};
-		
 		tcpConnection.cancelHeartbeat();
-		tcpConnection.downloadMap(id, path, callback);
+		tcpConnection.downloadMap(id, path, getDefaultCallback());
 	}
 	
 };

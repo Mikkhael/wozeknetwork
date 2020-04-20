@@ -13,6 +13,9 @@ namespace tcp
 void WozekConnectionHandler::operator()()
 {
 	log("New connection");
+	logger.log(Logger::Log::TcpActiveConnections);
+	logger.log(Logger::Log::TcpTotalConnections);
+	
 	remoteEndpoint = socket.remote_endpoint();
 	
 	//debugHandler();
@@ -26,7 +29,6 @@ void WozekConnectionHandler::awaitRequest(bool silent)
 		log("Awaiting request");
 	
 	resetState();
-	
 	
 	asyncReadToMainBuffer(1, asyncBranch(
 		[=]{handleReceivedRequestId(buffer[0]);},
@@ -68,7 +70,7 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 		}
 		default:
 		{
-			logError("Request code not recognized");
+			logError(Logger::Error::TcpInvalidRequests, "Request code not recognized");
 			// if not recognized, close connection
 		}
 	}
@@ -251,7 +253,7 @@ void WozekConnectionHandler::initiateFileTransferReceive(const size_t totalSize,
 		asyncPost(fileManager.getStrand(), [=]{
 			if(!fileManager.appendBufferToFile(state->path, state->bigBuffer.data(), state->bigBufferTop))
 			{
-				logError("Cannot write to file ", state->path);
+				logError(Logger::Error::FileSystemError, "Cannot write to file ", state->path);
 				mainCallback(false);
 				return;
 			}
@@ -284,7 +286,7 @@ void WozekConnectionHandler::initiateFileTransferReceive(const size_t totalSize,
 		[=](const data::SegmentedTransfer::SegmentHeader& header, auto callback){
 			if(header.size + state->totalBytesRead > totalSize)
 			{
-				logError("Total segment sizes exceed file size");
+				logError(Logger::Error::TcpInvalidRequests, "Total segment sizes exceed file size");
 				mainCallback(false);
 				return;
 			}
@@ -346,7 +348,7 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 			const size_t length = std::min(state->bigBuffer.size(), totalSize - state->totalBytesSent);
 			if(!fileManager.writeFileToBuffer(state->path, state->totalBytesSent, state->bigBuffer.data(), length))
 			{
-				logError("Cannot read from file ", state->path);
+				logError(Logger::Error::FileSystemError, "Cannot read from file ", state->path);
 				mainCallback(false);
 				return;
 			}
@@ -387,7 +389,7 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 				//std::cout << "Ack: " << ackHeader.code << std::endl;
 				if(ackHeader.code == data::SegmentedTransfer::ErrorCode)
 				{
-					logError("Unknown error during file transimison");
+					logError(Logger::Error::TcpSegFileTransferError, "Unknown error during file transimison");
 					mainCallback(false);
 					return;
 				}
@@ -409,7 +411,7 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 					callback();
 					return;
 				}
-				logError("Unexpected ack code received");
+				logError(Logger::Error::TcpSegFileTransferError, "Unexpected ack code received");
 				mainCallback(false);
 			}));
 		});
@@ -422,12 +424,13 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 
 void WozekConnectionHandler::timeoutHandler()
 {
-	log("Socket timed out");
+	logError(Logger::Error::TcpTimeout, "Socket timed out");
 }
 
 void WozekConnectionHandler::shutdownHandler()
 {
 	log("Shutting down...");
+	logger.log(Logger::Log::TcpActiveConnections, -1);
 }
 	
 }

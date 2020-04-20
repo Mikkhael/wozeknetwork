@@ -6,6 +6,8 @@
 #include <functional>
 #include <memory>
 #include <iostream>
+#include "logging.hpp"
+#include "config.hpp"
 
 namespace tcp
 {
@@ -75,15 +77,32 @@ private:
 				return;
 			}
 		}
-		else
+		
+		const auto address = handler->getSocket().remote_endpoint().address();
+		if(!address.is_v4())
 		{
-			//std::cerr << "Started handler " << handler->getRemote() << '\n';
-			(*handler)();
-			//std::cerr << "Returned handler " << handler->getRemote() << '\n';
+			logger.output("Connected from forbidden (v6) address: ", handler->getSocket().remote_endpoint(), '\n');
+			logger.error(Logger::Error::TcpForbidden);
+			awaitNewConnection();
+		}
+		else
+		{			
+			const uint32_t addressBinary = address.to_v4().to_uint();
+			config.checkIfIpv4IsAllowedSafe(addressBinary, [=](const bool success){
+				if(!success)
+				{
+					logger.output("Connected from forbidden address: ", handler->getSocket().remote_endpoint(), '\n');
+					logger.error(Logger::Error::TcpForbidden);
+				}
+				else
+				{
+					(*handler)();
+				}
+				awaitNewConnection();
+			});
 		}
 		
 		
-		awaitNewConnection();
 	}
 	
 };

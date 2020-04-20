@@ -10,7 +10,7 @@ int main(int argc, char** argv)
 	
 	if(argc < 4)
 	{
-		std::cout << "Use the parameters [port] [threads] [directory]";
+		std::cout << "Use the parameters [port] [additional_threads] [directory]";
 		return 0;
 	}
 	
@@ -21,7 +21,7 @@ int main(int argc, char** argv)
 	#else
 	
 	short port = 8081;
-	short threads = 0;
+	short threads = 1;
 	std::string dir = "ServerFiles";
 	
 	#endif // RELEASE
@@ -29,6 +29,47 @@ int main(int argc, char** argv)
 	const size_t numberOfAdditionalThreads = threads;
 	
 	asio::io_context ioContext;
+	
+	const fs::path logsPath = fs::path(dir) / "logs";
+	const fs::path configPath = fs::path(dir) / "config";
+	
+	if(!fs::exists(logsPath))
+	{
+		if(!fs::create_directory(logsPath))
+		{
+			std::cout << "Cannot create directory for logs\n";
+			return 0;
+		}
+	}
+	
+	if(!fs::exists(configPath))
+	{
+		if(!fs::create_directory(configPath))
+		{
+			std::cout << "Cannot create directory for config\n";
+			return 0;
+		}
+	}
+	
+	logger.setStrand(ioContext);
+	if(!logger.init(logsPath / "output.txt", logsPath / "error.txt", logsPath / "log.txt", std::chrono::seconds(3600)))
+	{
+		std::cout << "Cannot initialize logger\n";
+		return 0;
+	}
+	
+	if(!logger.isErrorFileOpen() || !logger.isLogFileOpen() || !logger.isOutputFileOpen())
+	{
+		std::cout << "Cannot create/open files required for logging\n";
+		return 0;
+	}
+	
+	config.setStrand(ioContext);
+	if(!config.init(configPath / "allowedips4.txt", std::chrono::seconds(3600)))
+	{
+		std::cout << "Cannot inicialize config\n";
+		return 0;
+	}
 	
 	db::Database database;
 	db::databaseManager.setDatabase(database);

@@ -1,0 +1,150 @@
+#pragma once
+#include "asioWrapper.hpp"
+#include <filesystem>
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <string>
+
+namespace fs = std::filesystem;
+
+class Logger
+{
+public:
+	
+	enum class Error {UnknownError, TcpTimeout, TcpInvalidRequests, TcpForbidden, TcpFileSystemError, TcpSegFileTransferError, ENUMEND};
+	enum class Log {TcpActiveConnections, ENUMEND};
+	
+	static constexpr size_t ErrorsSize = static_cast<size_t>(Error::ENUMEND);
+	static constexpr size_t LogSize    = static_cast<size_t>(Log::ENUMEND);
+	
+	
+private:
+	
+	auto getTimestamp() { return std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count(); }
+	
+	std::ofstream outputFile;
+	std::ofstream errorFile;
+	std::ofstream logFile;
+	
+	
+	std::array< unsigned long long, ErrorsSize> errorArr;
+	std::array< unsigned long long, LogSize> logArr;
+	
+	std::optional<asio::io_context::strand> strand;
+	
+	template <typename ...Args>
+	bool writeToFile(std::ofstream& os, Args&& ...args)
+	{
+		if(!os.is_open() || os.fail())
+		{
+			return false;
+		}
+		asio::post(getStrand(), [&os, ...args_captured = std::forward<Args>(args)]{ 
+			(os << ... << args_captured);
+		});
+		return true;
+	}
+	
+public:
+	
+	Logger()
+		: errorArr{}, logArr{}
+	{
+	}
+	
+	bool init(const fs::path& outputPath, const fs::path& errorPath, const fs::path& logPath)
+	{
+		outputFile.open(outputPath, std::ios::app);
+		errorFile.open(errorPath, std::ios::app);
+		logFile.open(logPath, std::ios::app);
+		
+		std::string header = "# New Session: ";
+		header += std::to_string(getTimestamp());
+		header += '\n';
+		
+		if(outputFile.is_open())
+		{
+			outputFile << header;
+		}
+		if(errorFile.is_open())
+		{
+			errorFile << header;
+		}
+		if(logFile.is_open())
+		{
+			logFile << header;
+		}
+		
+		return true;
+	}
+	
+	bool isOutputFileOpen() { return outputFile.is_open(); }
+	bool isErrorFileOpen() { return errorFile.is_open(); }
+	bool isLogFileOpen() { return logFile.is_open(); }
+	auto& getStrand() { return strand.value(); }
+	
+	void setStrand(asio::io_context& ioContext)
+	{
+		strand.empalce(ioContext);
+	}
+	
+	
+	bool writeOutputTOStdout = true;
+	
+	template <typename ...Args>
+	bool ouptput(Args&& ...args)
+	{
+		if(writeOutputTOStdout)
+		{
+			(std::cout << ... << args);
+		}
+		
+		return writeToFile(outputFile, std::forward<Args>(args)... );
+	}
+	
+	void log(const Log name, const long long n = 1)
+	{
+		asio::post(getStrand(), [=]{ 
+			logArr[static_cast<int>(name)] += n;
+		});
+	}
+	
+	void error(const Error name, const long long n = 1)
+	{
+		asio::post(getStrand(), [=]{ 
+			errorArr[static_cast<int>(name)] += n;
+		});
+	}
+	
+	void showErrors(std::ostream& os)
+	{
+		static_assert(ErrorsSize == 6);
+		
+		std::cout << "Errors as of " << getTimestamp() << ":\n";
+		
+		std::cout << "UnknownError:           " << errorArr[static_cast<int>( Error::UnknownError )]              << "\n";
+		std::cout << "TcpTimeout:             " << errorArr[static_cast<int>( Error::TcpTimeout )]                << "\n";
+		std::cout << "TcpInvalidRequests:     " << errorArr[static_cast<int>( Error::TcpInvalidRequests )]        << "\n";
+		std::cout << "TcpForbidden:           " << errorArr[static_cast<int>( Error::TcpForbidden )]              << "\n";
+		std::cout << "TcpFileSystemError:     " << errorArr[static_cast<int>( Error::TcpFileSystemError )]        << "\n";
+		std::cout << "TcpSegFileTransferError:" << errorArr[static_cast<int>( Error::TcpSegFileTransferError )]   << "\n";
+	}
+	
+	
+	void showLogs(std::ostream& os)
+	{
+		static_assert(LogSize == 1);
+		
+		std::cout << "Logs as of " << getTimestamp() << ":\n";
+		
+		std::cout << "TcpActiveConnection:    " << errorArr[static_cast<int>( Error::TcpActiveConnection )]       << "\n";
+	}
+	
+};
+
+
+
+
+
+extern Logger logger;

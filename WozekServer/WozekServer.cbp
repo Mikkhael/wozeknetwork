@@ -57,8 +57,13 @@
 		<Unit filename="TCPWozekServer.cpp" />
 		<Unit filename="TCPWozekServer.hpp" />
 		<Unit filename="asioWrapper.hpp" />
+		<Unit filename="config.cpp" />
+		<Unit filename="config.hpp" />
+		<Unit filename="enum.hpp" />
 		<Unit filename="fileManager.cpp" />
 		<Unit filename="fileManager.hpp" />
+		<Unit filename="logging.cpp" />
+		<Unit filename="logging.hpp" />
 		<Unit filename="main.cpp" />
 		<Unit filename="segmentedFileTransfer.hpp" />
 		<Unit filename="states.hpp" />

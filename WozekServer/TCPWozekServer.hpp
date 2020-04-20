@@ -3,12 +3,14 @@
 #include "TCP.hpp"
 #include "DatabaseManager.hpp"
 #include "fileManager.hpp"
+#include "logging.hpp"
 
 #include "segmentedFileTransfer.hpp"
 
 #include <type_traits>
 #include <chrono>
 #include <array>
+#include <sstream>
 
 #include "states.hpp"
 
@@ -90,25 +92,37 @@ private:
 	
 	/// Logging
 	
-	std::ostream& printPrefix(std::ostream& os) // TODO: add timestamp
+	std::string getPrefix() // TODO: add timestamp
 	{
-		os << "[ ";
+		std::stringstream ss;
+		ss << "[ ";
 		if(socket.is_open())
-			os << socket.remote_endpoint() << ' ';
+			ss << socket.remote_endpoint() << ' ';
 		if(type != Type::None)
-			os << (type == Type::Host ? 'H' : 'C') << id << ' ';
-		return os << "] ";
-		
+			ss << (type == Type::Host ? 'H' : 'C') << id << ' ';
+		ss << "] ";
+		return ss.str();
+	}
+	
+	template <typename ...Ts>
+	void log(Ts&& ...args)
+	{
+		logger.output(getPrefix(), std::forward<Ts>(args)... , '\n');
 	}
 	template <typename ...Ts>
-	void log(Ts ...args)
+	void logError(Logger::Error name, Ts&& ...args)
 	{
-		(printPrefix(std::clog) << ... << args) << '\n'; 
+		if constexpr (sizeof...(args) > 0)
+		{
+			logger.output(getPrefix(), "Error {code: ", static_cast<int>(name), "} ", std::forward<Ts>(args)... , '\n');
+		}
+		logger.error(name);
 	}
 	template <typename ...Ts>
-	void logError(Ts ...args)
+	void logError(Ts&& ...args)
 	{
-		((printPrefix(std::cerr) << "Error ") << ... << args) << '\n'; 
+		logger.output(getPrefix(), "Error ", std::forward<Ts>(args)... , '\n');
+		logger.error(Logger::Error::UnknownError);
 	}
 	
 	/// Functionality ///
@@ -302,17 +316,17 @@ private:
 			log("Disconnected");
 			return true;
 		}
-		logError(err);
+		logError(Logger::Error::TcpConnectionBroken, err);
 		return true;
 	}
 	
 	bool logAndAbortErrorHandler(const Error& err) {
 		if(err == asio::error::eof)
 		{
-			logError("Connection unexpectedly closed");
+			logError(Logger::Error::TcpUnexpectedConnectionClosed, "Connection unexpectedly closed");
 			return true;
 		}
-		logError(err);
+		logError(Logger::Error::TcpConnectionBroken, err);
 		return true;
 	}
 

@@ -215,8 +215,13 @@ public:
 	{
 		if(err || !isConnected)
 			return;
-		Error ignored;
-		asio::write(socket, asio::buffer(&data::HeartbeatCode, sizeof(data::HeartbeatCode)), ignored);
+		Error heartbeatError;
+		asio::write(socket, asio::buffer(&data::HeartbeatCode, sizeof(data::HeartbeatCode)), heartbeatError);
+		if(heartbeatError)
+		{
+			disconnect();
+			return;
+		}
 		startHeartbeat();
 	}
 	
@@ -240,13 +245,26 @@ public:
 		timeoutTimer.cancel();
 		heartbeatTimer.cancel();
 		Error ignored;
-		socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
+		socket.shutdown(asiotcp::socket::shutdown_both, ignored);
 		socket.close();
-		id = false;
+		id = 0;
 		resetState();
 	}
 	
-	void resolveAndConnect(std::string_view host, std::string_view service, std::function<void(bool)> requestCallback )
+	
+	Socket& getSocket() {return socket;}
+	const Endpoint& getRemote() {return remoteEndpoint;}
+	
+	data::IdType getId() {return id;}
+	
+	// Callbacks
+	
+	enum class CallbackCode {Success=0, Error=1, CriticalError=2};
+	using Callback = std::function<void(CallbackCode)>;
+	
+	// Connect
+	
+	void resolveAndConnect(std::string_view host, std::string_view service, Callback requestCallback)
 	{
 		if(isConnected)
 			disconnect();
@@ -256,7 +274,7 @@ public:
 				if(err)
 				{
 					logError("During Relove: ", err);
-					requestCallback(false);
+					requestCallback(CallbackCode::Error);
 					return;
 				}
 				
@@ -265,39 +283,33 @@ public:
 						if(err)
 						{
 							logError("During Connection: ", err);
-							requestCallback(false);
+							requestCallback(CallbackCode::Error);
 							return;
 						}
 						log("Connected to ", endpoint);
 						isConnected = true;
-						requestCallback(true);
+						requestCallback(CallbackCode::Success);
 					});
 			});
-	}
-	
-	Socket& getSocket() {return socket;}
-	const Endpoint& getRemote() {return remoteEndpoint;}
-	
-	data::IdType getId() {return id;}
-	
-	
+	}	
 	
 	/// Functionality ///
 	
+	
 	// Register As New Host
 	
-	void registerAsNewHost(data::RegisterNewHost::Request reqHeader, std::function<void(data::IdType)> requestCallback );
+	void registerAsNewHost(data::RegisterNewHost::Request reqHeader, Callback requestCallback );
 	
 	// Upload Map
 	
-	void uploadMap( fs::path path, std::function<void(bool)> requestCallback );
-	void downloadMap( data::IdType id, fs::path path, std::function<void(bool)> requestCallback );
+	void uploadMap( fs::path path, Callback requestCallback );
+	void downloadMap( data::IdType id, fs::path path, Callback requestCallback );
 	
 	
 	// Segmented File Transfer
 	
-	void initiateFileUpload(fs::path path, const size_t maxBigBufferSize, const size_t maxSegmentLength, std::function<void(bool)>requestCallback);
-	void initiateFileDownload(fs::path path, const size_t id, const size_t maxBigBufferSize, std::function<void(bool)>requestCallback);
+	void initiateFileUpload(fs::path path, const size_t maxBigBufferSize, const size_t maxSegmentLength, Callback requestCallback);
+	void initiateFileDownload(fs::path path, const size_t id, const size_t maxBigBufferSize, Callback requestCallback);
 	
 	
 };
