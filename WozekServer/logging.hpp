@@ -16,7 +16,7 @@ public:
 	
 	SMARTENUM( Error, 
 			UnknownError, TcpTimeout, TcpInvalidRequests, TcpForbidden, FileSystemError, TcpSegFileTransferError, TcpUnexpectedConnectionClosed,
-			TcpConnectionBroken)
+			TcpConnectionBroken, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)
 	
 	SMARTENUM( Log, 
 			TcpActiveConnections, TcpTotalConnections)

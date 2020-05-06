@@ -14,6 +14,7 @@ namespace fs = std::filesystem;
 #include "config.hpp"
 #include "DatabaseManager.hpp"
 #include "TCPWozekServer.hpp"
+#include "UDPWozekServerState.hpp"
 
 
 

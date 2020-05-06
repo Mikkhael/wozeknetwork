@@ -68,6 +68,11 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 			handleDownloadMapRequest();
 			break;
 		}
+		case data::StartTheWorld::Code : // Host starting the world 
+		{
+			handleStartTheWorld();
+			break;
+		}
 		default:
 		{
 			logError(Logger::Error::TcpInvalidRequests, "Request code not recognized");
@@ -227,6 +232,54 @@ void WozekConnectionHandler::finalizeDownloadMap(data::DownloadMap::RequestHeade
 	log("Map downloaded with id", header.hostId, " completed successfully");
 	awaitRequest();
 }
+
+
+/// Start the World ///
+
+void WozekConnectionHandler::handleStartTheWorld()
+{
+	static auto failRoutine = [this]{
+		data::StartTheWorld::ResponseHeader resHeader;
+		resHeader.code = data::StartTheWorld::ResponseHeader::Failure;
+		sendTerminatingMessageObject(resHeader);
+	};
+	
+	log("Handling Start The World Request");
+	asyncReadObject<data::StartTheWorld::RequestHeader>(asyncBranch(
+	[=](auto& reqHeader)
+	{
+		if(id == 0 || type != Type::Host || reqHeader.port == 0)
+		{
+			
+			log("Unable to start world on current host");
+			failRoutine();
+			return;
+		}
+		
+		asyncPost(db::databaseManager.getStrand(), [=]{
+			auto worldId = db::databaseManager.createAndAddRecord<db::Database::Table::World>();
+			if(worldId == 0)
+			{
+				logError("Failure while creating a new world in the database");
+				failRoutine();
+				return;
+			}
+			
+			auto& world = *db::databaseManager.get<db::Database::Table::World>(worldId);
+			world.createStrand(getContext());
+			world.setMainHost(id, {getRemote().address(), reqHeader.port});
+			
+			
+			log("World started successfuly. Id: ", worldId);
+			data::StartTheWorld::ResponseHeader resHeader;
+			resHeader.code = data::StartTheWorld::ResponseHeader::Success;
+			resHeader.worldId = worldId;
+			sendTerminatingMessageObject(resHeader);
+		});
+		
+	}));
+}
+
 
 
 /// File Transfer ///

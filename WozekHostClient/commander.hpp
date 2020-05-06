@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include "TCP.hpp"
+#include "UDP.hpp"
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -15,9 +16,10 @@ class Commander
 public:
 	
 	tcp::Connection tcpConnection;
+	udp::Connection udpConnection;
 	
 	Commander(asio::io_context& ioContext_)
-		: ioContext(ioContext_), tcpConnection(ioContext_)
+		: ioContext(ioContext_), tcpConnection(ioContext_), udpConnection(ioContext_)
 	{
 	}
 	
@@ -39,14 +41,33 @@ R"(
 =============
 What do you want to do?
 
-1. Connect to a tcp server
+1. Connect to a server
 2. Register as host
 3. Send a map file
 4. Download a map file
+5. Start the world
+---
+UDP functions:
+a. Send "UpdateState"
+
 =============
 )";
 	}
-	
+	auto getDefaultUdpCallback()
+	{
+		return [this](const udp::Connection::CallbackCode r){
+			tcpConnection.reset();
+			if(r == udp::Connection::CallbackCode::Success)
+			{
+				std::cout << "Success\n";
+			}
+			else if(r == udp::Connection::CallbackCode::Error)
+			{
+				std::cout << "Error\n";
+			}
+			postGetCommand();
+		};
+	}
 	auto getDefaultCallback()
 	{
 		return [this](const tcp::Connection::CallbackCode r){
@@ -105,6 +126,16 @@ What do you want to do?
 					downloadMapFile();
 					return;
 				}
+			case '5':
+				{
+					startTheWorld();
+					return;
+				}
+			case 'a':
+				{
+					udpUpdateState();
+					return;
+				}
 			default:
 				{
 					std::cout << "Unknown command\n";
@@ -127,6 +158,8 @@ What do you want to do?
 		std::cin >> port;
 		
 		std::cout << "Connecting...\n";
+		
+		udpConnection.setRemoteEndpoint(ip, port);
 		
 		tcpConnection.cancelHeartbeat();
 		tcpConnection.resolveAndConnect(ip, port, getDefaultCallback());
@@ -184,4 +217,14 @@ What do you want to do?
 		tcpConnection.downloadMap(id, path, getDefaultCallback());
 	}
 	
+	void startTheWorld()
+	{		
+		tcpConnection.cancelHeartbeat();
+		tcpConnection.startTheWorld(getDefaultCallback());
+	}
+	
+	void udpUpdateState()
+	{
+		udpConnection.updateState(getDefaultUdpCallback());
+	}
 };

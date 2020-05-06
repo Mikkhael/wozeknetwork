@@ -55,6 +55,7 @@
 		<Unit filename="Imported.hpp" />
 		<Unit filename="TCP.cpp" />
 		<Unit filename="TCP.hpp" />
+		<Unit filename="UDP.hpp" />
 		<Unit filename="commander.hpp" />
 		<Unit filename="main.cpp" />
 		<Unit filename="test.cpp" />

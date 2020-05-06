@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Datagrams.hpp"
+#include "World.hpp"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -10,7 +11,6 @@
 namespace tcp {
 	class WozekConnectionHandler;
 }
-
 
 namespace db
 {
@@ -31,37 +31,49 @@ struct Host
 	
 	Header header;
 	Network network;
-	std::unordered_set<IdType> connectedControllers;
 };
 
 struct Controller
 {
 	using Header = data::Controller::Header;
-	using DesiredState = data::Controller::DesiredState;
-	using MeasuredState = data::Controller::MeasuredState;
+	struct Network
+	{
+		std::weak_ptr<tcp::WozekConnectionHandler> tcpConnection;
+	};
 	
 	Header header;
-	DesiredState desiredState;
-	MeasuredState measuredState;
-	IdType host = 0;
+	Network network;
+};
+
+
+struct World : public ::World
+{	
+	struct Header
+	{
+		IdType id;
+	};
+	
+	Header header;
 };
 
 struct Database
 {
 	IdMap<Host> hosts;
 	IdMap<Controller> controllers;
+	IdMap<World> worlds;
 	
 	
-	
-	enum class Table {Host, Controller};
+	enum class Table {Host, Controller, World};
 	
 	template <Table table>
 	auto& get()
 	{
-		if constexpr (table == Table::Host)
+		if constexpr	  (table == Table::Host)
 			return hosts;
-		else if 	 (table == Table::Controller)
+		else if constexpr (table == Table::Controller)
 			return controllers;
+		else if constexpr (table == Table::World)
+			return worlds;
 	}
 	
 	template <Table table>

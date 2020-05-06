@@ -85,7 +85,13 @@ int main(int argc, char** argv)
 	tcp::WozekServer server(ioContext);
 	if(server.start(port))
 	{
-		std::cout << "Server started on port " << port << '\n';
+		std::cout << "TCP Server started on port " << port << '\n';
+	}
+	
+	udp::UdpWozekStateServer udpStateServer(ioContext);
+	if(udpStateServer.start(port))
+	{
+		std::cout << "UDP State Server started on port " << port << '\n';
 	}
 
 	std::vector<std::thread> threadPool;

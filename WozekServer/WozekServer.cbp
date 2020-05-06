@@ -56,6 +56,10 @@
 		<Unit filename="TCP.hpp" />
 		<Unit filename="TCPWozekServer.cpp" />
 		<Unit filename="TCPWozekServer.hpp" />
+		<Unit filename="UDP.hpp" />
+		<Unit filename="UDPServerHandlerBase.hpp" />
+		<Unit filename="UDPWozekServerState.hpp" />
+		<Unit filename="World.hpp" />
 		<Unit filename="asioWrapper.hpp" />
 		<Unit filename="config.cpp" />
 		<Unit filename="config.hpp" />

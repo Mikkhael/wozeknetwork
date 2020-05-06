@@ -31,9 +31,8 @@ void Connection::registerAsNewHost(data::RegisterNewHost::Request reqHeader, Cal
 				return;
 			}
 			
-			id = resHeader.id;
-			log("Successfully registerd as host with id: ", id);
-			requestCallback(CallbackCode::Success);
+			gameManager.setHostId(resHeader.id);
+			log("Successfully registerd as host with id: ", resHeader.id);			requestCallback(CallbackCode::Success);
 			return;
 			
 		}, errorHandler));
@@ -56,7 +55,7 @@ void Connection::uploadMap(fs::path path, Callback requestCallback)
 	}
 	
 	data::UploadMap::RequestHeader reqHeader;
-	reqHeader.hostId = id;
+	reqHeader.hostId = gameManager.getHostId();
 	reqHeader.totalMapSize = fs::file_size(path);
 	
 	size_t off = 0;
@@ -141,6 +140,45 @@ void Connection::downloadMap(data::IdType id, fs::path path, Callback requestCal
 	}, errorHandler ));
 	
 }
+
+void Connection::startTheWorld(Callback requestCallback)
+{
+	auto errorHandler = [=](const Error& err)
+	{
+		logError(err);
+		requestCallback(CallbackCode::CriticalError);
+	};
+	
+	log("Initiating Starting The World");
+	data::StartTheWorld::RequestHeader reqHeader;
+	reqHeader.port = gameManager.getUdpStatePort();
+	
+	size_t off = 0;
+	off += writeObjectToBuffer(data::StartTheWorld::Code, off);
+	off += writeObjectToBuffer(reqHeader, off);
+	
+	asyncWrite(off, ioHandler(
+	[=]{
+		asyncRead(sizeof(data::StartTheWorld::ResponseHeader), ioHandler(
+		[=]{
+			data::StartTheWorld::ResponseHeader resHeader;
+			readObjectFromBuffer(resHeader);
+			
+			if(resHeader.code == data::StartTheWorld::ResponseHeader::Failure)
+			{
+				requestCallback(CallbackCode::Error);
+				return;
+			}
+			
+			gameManager.setWorldId(resHeader.worldId);
+			log("Successfully started the world with id: ", resHeader.worldId);
+			requestCallback(CallbackCode::Success);
+			return;
+			
+		}, errorHandler));
+	}, errorHandler));
+}
+
 
 void Connection::initiateFileDownload(fs::path path, const size_t totalSize, const size_t maxBigBufferSize, Callback requestCallback)
 {

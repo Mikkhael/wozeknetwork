@@ -8,10 +8,11 @@
 int main()
 {
 	
-	asio::io_context ioContext;
+	asio::io_context ioContext;	
 	Commander commander(ioContext);
 	
 	commander.start();
+	
 	
 	std::thread t([&]{ioContext.run(); std::cout << "Additional thread ended\n";});
 	ioContext.run();

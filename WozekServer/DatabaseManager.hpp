@@ -21,6 +21,7 @@ class DatabaseManager
 		return itr == database->get<table>().end();
 	}
 	
+	
 	template<Database::Table table>
 	IdType getNextFreeId();
 	
@@ -34,7 +35,7 @@ public:
 	void setDatabase(Database& database_){ setDatabase(&database_); }
 	void setDatabase(Database* database_){ database = database_; }
 	
-	void createStrand(asio::io_context& ioContext){ strand.emplace(ioContext); }	
+	void createStrand(asio::io_context& ioContext) {strand.emplace(ioContext);}
 	bool hasStrand() {return strand.has_value();}
 	auto& getStrand() {return strand.value();}
 	
@@ -53,11 +54,10 @@ public:
 	bool addRecord(const typename Database::recordType<table>::Header& header);
 	
 	template<Database::Table table>
-	IdType createAndAddRecord(const typename Database::recordType<table>::Header& header);
+	IdType createAndAddRecord(const typename Database::recordType<table>::Header& header = {});
 	
 	// Specific functions
 	
-	bool connectControllerToHost(IdType, IdType);
 	
 };
 

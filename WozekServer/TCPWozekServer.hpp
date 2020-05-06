@@ -28,6 +28,8 @@ public:
 	enum class Type {None, Host, Controller};
 	
 private:
+	asio::io_context& ioContext;
+	
 	Socket socket;
 	Endpoint remoteEndpoint;
 	
@@ -63,7 +65,7 @@ private:
 	
 public:
 	WozekConnectionHandler(asio::io_context& ioContext)
-		: socket(ioContext), timeoutTimer(ioContext), debugTimer(ioContext)
+		: ioContext(ioContext), socket(ioContext), timeoutTimer(ioContext), debugTimer(ioContext)
 	{
 	}
 	
@@ -78,6 +80,7 @@ public:
 	
 	Socket& getSocket() {return socket;}
 	auto getExecutor() {return socket.get_executor();}
+	auto& getContext() {return ioContext;}
 	const Endpoint& getRemote() {return remoteEndpoint;}
 	bool isRunning() {return !isShutDown;}
 	
@@ -160,6 +163,11 @@ private:
 	
 	void handleDownloadMapRequest();
 	void finalizeDownloadMap(data::DownloadMap::RequestHeader header);
+	
+	// World
+	
+	void handleStartTheWorld();
+	
 	
 	/// Async and Helper Functions ///
 	

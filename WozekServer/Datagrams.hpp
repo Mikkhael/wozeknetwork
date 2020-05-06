@@ -60,6 +60,8 @@ namespace Controller
 
 /// Protocols
 
+// TCP
+
 constexpr char HeartbeatCode = 0x00;
 namespace RegisterNewHost
 {
@@ -138,5 +140,49 @@ namespace DownloadMap
 	
 }
 
+namespace StartTheWorld
+{
+	static constexpr char Code = 0x04;
+	struct RequestHeader
+	{
+		unsigned short port;
+	};
+	
+	struct ResponseHeader
+	{
+		constexpr static char Failure = 0x00;
+		constexpr static char Success = 0x01;
+		
+		char code;
+		IdType worldId;
+	};
+	
+};
+
+
+// UDP
+
+struct UpdateHostState
+{
+	constexpr static char Code = 0x01;
+	
+	struct Header
+	{
+		IdType worldId;
+		uint64_t timepoint;
+		uint64_t controllersCount;
+	
+		size_t getSizeof() {return sizeof(UpdateHostState) + sizeof(ControllerData) * controllersCount;}
+	};
+	
+	struct ControllerData
+	{
+		IdType id;
+		Controller::DesiredState desiredState;
+	};
+	
+	Header header;
+	// ContollerData[]	
+};
 
 }

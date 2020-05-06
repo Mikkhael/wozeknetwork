@@ -8,6 +8,8 @@
 #include <fstream>
 #include <algorithm>
 #include <type_traits>
+#include "GameManager.hpp"
+
 
 namespace fs = std::filesystem;
 
@@ -35,10 +37,6 @@ class Connection
 	
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer;
-	
-	
-	
-	data::IdType id = 0;
 	
 	asio::steady_timer heartbeatTimer;
 	asio::steady_timer timeoutTimer;
@@ -247,15 +245,14 @@ public:
 		Error ignored;
 		socket.shutdown(asiotcp::socket::shutdown_both, ignored);
 		socket.close();
-		id = 0;
+		gameManager.setHostId(0);
+		gameManager.setWorldId(0);
 		resetState();
 	}
 	
 	
 	Socket& getSocket() {return socket;}
 	const Endpoint& getRemote() {return remoteEndpoint;}
-	
-	data::IdType getId() {return id;}
 	
 	// Callbacks
 	
@@ -305,6 +302,9 @@ public:
 	void uploadMap( fs::path path, Callback requestCallback );
 	void downloadMap( data::IdType id, fs::path path, Callback requestCallback );
 	
+	// World
+	
+	void startTheWorld( Callback requestCallback );
 	
 	// Segmented File Transfer
 	
