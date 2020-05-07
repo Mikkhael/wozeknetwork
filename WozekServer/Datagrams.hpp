@@ -89,7 +89,7 @@ namespace SegmentedTransfer
 	
 	struct SegmentAck
 	{
-		char code;
+		char code = ErrorCode;
 	};
 	
 	struct SegmentHeader
