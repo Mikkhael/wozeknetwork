@@ -128,7 +128,7 @@ public:
 	void setStrand(asio::io_context& ioContext)
 	{
 		strand.emplace(ioContext);
-		updateIpv4Timer.emplace(strand.value());
+		updateIpv4Timer.emplace(ioContext);
 	}
 	bool hasStrand() {return strand.has_value();}
 	asio::io_context::strand& getStrand(){return strand.value();}
