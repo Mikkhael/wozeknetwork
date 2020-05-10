@@ -58,17 +58,17 @@ private:
 	
 	void awaitNewConnection()
 	{
-		//std::cerr << "Awaiting connection..";
+		//logger.output("Awaiting connection on endpoint: ", acceptor.local_endpoint());
 		auto handler = std::make_shared<ConnectionHandler>(ioContext);
 		
 		acceptor.async_accept( handler->getSocket(), [=](const auto& err){
 			handleNewConnection(handler, err);
 		});
-		//std::cerr << "..\n";
 	}
 	
 	void handleNewConnection(HandlerPointer handler, const Error& err)
 	{
+		//logger.output("Handleing new connection.");
 		if(err)
 		{
 			if(ConnectionErrorHandler{}(err))

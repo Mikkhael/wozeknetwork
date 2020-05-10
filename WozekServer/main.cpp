@@ -102,6 +102,7 @@ int main(int argc, char** argv)
 		{
 			try
 			{
+				std::cout << "Running on thread " << std::this_thread::get_id() << '\n';
 				ioContext.run();
 			}
 			catch(std::exception& e)
@@ -119,6 +120,7 @@ int main(int argc, char** argv)
 	try
 	{
 			
+		std::cout << "Rinning on main thread\n";
 		ioContext.run();
 		std::cout << "Main thread ended.\n";
 		
