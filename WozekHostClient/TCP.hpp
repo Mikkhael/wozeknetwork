@@ -75,8 +75,8 @@ public:
 	std::ostream& printPrefix(std::ostream& os) // TODO: add timestamp
 	{
 		os << "[ ";
-		if(socket.is_open())
-			os << socket.remote_endpoint() << ' ';
+		//if(socket.is_open())
+		//	os << socket.remote_endpoint() << ' ';
 		return os << "] ";
 		
 	}
@@ -266,8 +266,11 @@ public:
 		if(isConnected)
 			disconnect();
 		
+		log("Starting resolve...");
+		
 		resolver.async_resolve(host, service, [=](const Error& err, auto results)
 			{
+				log("Starting connect...");
 				if(err)
 				{
 					logError("During Relove: ", err);
