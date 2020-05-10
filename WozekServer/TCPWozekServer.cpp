@@ -210,7 +210,7 @@ void WozekConnectionHandler::handleDownloadMapRequest()
 		{
 			log("Map with id ", reqHeader.hostId, " dosen't exist");
 			resHeader.code = data::DownloadMap::ResponseHeader::DenyAccessCode;
-			asyncWriteObject(resHeader, asyncBranch(awaitRequest));
+			asyncWriteObject(resHeader, asyncBranch(&WozekConnectionHandler::awaitRequest));
 			return;
 		}
 		

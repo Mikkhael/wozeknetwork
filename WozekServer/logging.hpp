@@ -151,7 +151,7 @@ public:
 	void setStrand(asio::io_context& ioContext)
 	{
 		strand.emplace(ioContext);
-		saveLogsTimer.emplace(strand.value());
+		saveLogsTimer.emplace(ioContext);
 	}
 	
 	

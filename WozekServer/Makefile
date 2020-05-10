@@ -1,8 +1,8 @@
 
 # Config
-BOOSTDIR := D:/Boost/boost_1_72_0
+BOOSTDIR :=
 WINDOWSLDFLAGS  ?= -lws2_32 -lwsock32
-LINUXLDFLAGS    ?= 
+LINUXLDFLAGS    ?= -lboost_system -lboost_thread -lpthread -L/usr/lib/ -lstdc++fs
 # End of config
 
 CXXFLAGS ?= -std=c++1z -O2 -DRELEASE
