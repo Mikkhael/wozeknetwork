@@ -78,10 +78,11 @@ private:
 			}
 		}
 		
-		const auto address = handler->getSocket().remote_endpoint().address();
+		Error ignoredError;
+		const auto address = handler->getSocket().remote_endpoint(ignoredError).address();
 		if(!address.is_v4())
 		{
-			logger.output("Connected from forbidden (v6) address: ", handler->getSocket().remote_endpoint(), '\n');
+			logger.output("Connected from forbidden (v6) address: ", handler->getSocket().remote_endpoint(ignoredError));
 			logger.error(Logger::Error::TcpForbidden);
 			awaitNewConnection();
 		}
@@ -91,7 +92,8 @@ private:
 			config.checkIfIpv4IsAllowedSafe(addressBinary, [=](const bool success){
 				if(!success)
 				{
-					logger.output("Connected from forbidden address: ", handler->getSocket().remote_endpoint(), '\n');
+					Error ignoredError;
+					logger.output("Connected from forbidden address: ", handler->getSocket().remote_endpoint(ignoredError));
 					logger.error(Logger::Error::TcpForbidden);
 				}
 				else

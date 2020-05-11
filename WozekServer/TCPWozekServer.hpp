@@ -98,9 +98,7 @@ private:
 	std::string getPrefix() // TODO: add timestamp
 	{
 		std::stringstream ss;
-		ss << "[ ";
-		if(socket.is_open())
-			ss << socket.remote_endpoint() << ' ';
+		ss << "[ " << remoteEndpoint << ' ';
 		if(type != Type::None)
 			ss << (type == Type::Host ? 'H' : 'C') << id << ' ';
 		ss << "] ";
@@ -110,21 +108,21 @@ private:
 	template <typename ...Ts>
 	void log(Ts&& ...args)
 	{
-		logger.output(getPrefix(), std::forward<Ts>(args)... , '\n');
+		logger.output(getPrefix(), std::forward<Ts>(args)...);
 	}
 	template <typename ...Ts>
 	void logError(Logger::Error name, Ts&& ...args)
 	{
 		if constexpr (sizeof...(args) > 0)
 		{
-			logger.output(getPrefix(), "Error {code: ", static_cast<int>(name), "} ", std::forward<Ts>(args)... , '\n');
+			logger.output(getPrefix(), "Error {code: ", static_cast<int>(name), "} ", std::forward<Ts>(args)...);
 		}
 		logger.error(name);
 	}
 	template <typename ...Ts>
 	void logError(Ts&& ...args)
 	{
-		logger.output(getPrefix(), "Error ", std::forward<Ts>(args)... , '\n');
+		logger.output(getPrefix(), "Error ", std::forward<Ts>(args)...);
 		logger.error(Logger::Error::UnknownError);
 	}
 	

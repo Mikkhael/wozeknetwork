@@ -16,7 +16,7 @@ public:
 	
 	SMARTENUM( Error, 
 			UnknownError, TcpTimeout, TcpInvalidRequests, TcpForbidden, FileSystemError, TcpSegFileTransferError, TcpUnexpectedConnectionClosed,
-			TcpConnectionBroken, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)
+			TcpConnectionBroken, TcpUnknownError, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)
 	
 	SMARTENUM( Log, 
 			TcpActiveConnections, TcpTotalConnections)
@@ -46,7 +46,7 @@ private:
 			return false;
 		}
 		asio::post(getStrand(), [&os, args...]{ 
-			(os << ... << args);
+			(os << ... << args) << '\n';
 			os.flush(); // Possibly delete
 		});
 		return true;
@@ -162,7 +162,7 @@ public:
 	{
 		if(writeOutputToStdout)
 		{
-			(std::cout << ... << args);
+			(std::cout << ... << args) << '\n';
 		}
 		
 		return writeToFile(outputFile, std::forward<Args>(args)... );

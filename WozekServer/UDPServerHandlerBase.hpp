@@ -31,14 +31,14 @@ protected:
 	template <typename ...Ts>
 	void log(Ts&& ...args)
 	{
-		logger.output("UDP: ", std::forward<Ts>(args)... , '\n');
+		logger.output("UDP: ", std::forward<Ts>(args)...);
 	}
 	template <typename ...Ts>
 	void logError(Logger::Error name, Ts&& ...args)
 	{
 		if constexpr (sizeof...(args) > 0)
 		{
-			logger.output("UDP Error {code: ", static_cast<int>(name), "} ", std::forward<Ts>(args)... , '\n');
+			logger.output("UDP Error {code: ", static_cast<int>(name), "} ", std::forward<Ts>(args)...);
 		}
 		logger.error(name);
 	}

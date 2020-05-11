@@ -92,7 +92,7 @@ struct WozekStateServerErrorHandler
 {
 	bool operator()(const asioudp::endpoint& endpoint, const Error& err)
 	{
-		logger.output("[", endpoint, "] Error occured while receiving UDP datagram:\n", err, '\n');
+		logger.output("[", endpoint, "] Error occured while receiving UDP datagram:\n", err);
 		logger.error(Logger::Error::UdpUnknownError);
 		return true;
 	}

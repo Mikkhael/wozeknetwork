@@ -12,11 +12,20 @@ namespace tcp
 
 void WozekConnectionHandler::operator()()
 {
+	Error err;
+	remoteEndpoint = socket.remote_endpoint(err);
+	if(err)
+	{
+		logger.output("Unknown error while connecting to the remote endpoint: ", err);
+		logger.error(Logger::Error::TcpUnknownError);
+		return;
+	}
+	
+	
 	log("New connection");
 	logger.log(Logger::Log::TcpActiveConnections);
 	logger.log(Logger::Log::TcpTotalConnections);
 	
-	remoteEndpoint = socket.remote_endpoint();
 	
 	//debugHandler();
 	awaitRequest();

@@ -74,10 +74,7 @@ public:
 	
 	std::ostream& printPrefix(std::ostream& os) // TODO: add timestamp
 	{
-		os << "[ ";
-		//if(socket.is_open())
-		//	os << socket.remote_endpoint() << ' ';
-		return os << "] ";
+		return os <<  "[ " << remoteEndpoint << "] ";
 		
 	}
 	template <typename ...Ts>
@@ -286,6 +283,7 @@ public:
 							requestCallback(CallbackCode::Error);
 							return;
 						}
+						remoteEndpoint = endpoint;
 						log("Connected to ", endpoint);
 						isConnected = true;
 						requestCallback(CallbackCode::Success);
