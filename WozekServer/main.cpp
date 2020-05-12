@@ -52,7 +52,7 @@ int main(int argc, char** argv)
 	}
 	
 	logger.setStrand(ioContext);
-	if(!logger.init(logsPath / "output.txt", logsPath / "error.txt", logsPath / "log.txt", std::chrono::seconds(3600)))
+	if(!logger.init(logsPath / "output.txt", logsPath / "error.txt", logsPath / "log.txt", std::chrono::seconds(30)))
 	{
 		std::cout << "Cannot initialize logger\n";
 		return 0;

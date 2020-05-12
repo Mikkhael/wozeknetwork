@@ -88,9 +88,9 @@ private:
 	{
 		saveLogsTimer.value().expires_after(saveLogsTimerDuration);
 		saveLogsTimer.value().async_wait([=](const ::Error& err){
-			if(err)
+			if(err && strand.has_value())
 				return;
-			saveLogsRecord();
+			asio::post(strand.value(), [=]{saveLogsRecord();});
 			saveLogsTimerStart();
 		});
 	}
@@ -118,6 +118,7 @@ public:
 		if(outputFile.is_open())
 		{
 			outputFile << header;
+			outputFile.flush();
 		}
 		if(errorFile.is_open())
 		{
@@ -127,6 +128,7 @@ public:
 				errorFile << '\t' << ErrorGetName(i);
 			}
 			errorFile << '\n';
+			errorFile.flush();
 		}
 		if(logFile.is_open())
 		{
@@ -136,6 +138,7 @@ public:
 				logFile << '\t' << LogGetName(i);
 			}
 			logFile << '\n';
+			logFile.flush();
 		}
 		
 		saveLogsTimerStart(saveLogsTimerDuration);
