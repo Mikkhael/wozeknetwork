@@ -48,7 +48,7 @@ prepare:
 	$(MD) $(OBJ_DIR)
 
 clean:
-	$(RM) $(BUILD_DIR)
+	#$(RM) $(BUILD_DIR)
 	$(RM) $(OBJ_DIR)
 
 -include $(DEPS)
