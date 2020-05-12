@@ -300,13 +300,13 @@ private:
 	
 	void shutConnection()
 	{
+		Error ignoredError;
 		isShutDown = true;
 		timeoutTimer.cancel();
-		socket.shutdown(Socket::shutdown_type::shutdown_both);
+		socket.shutdown(Socket::shutdown_type::shutdown_both, ignoredError);
 		
 		shutdownHandler();
 		
-		Error ignoredError;
 		socket.close(ignoredError);
 	}
 	
