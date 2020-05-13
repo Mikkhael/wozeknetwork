@@ -99,7 +99,6 @@ namespace SegmentedTransfer
 	
 }
 
-
 namespace UploadMap
 {
 	constexpr char Code = 0x02;
@@ -158,6 +157,46 @@ namespace StartTheWorld
 	};
 	
 };
+
+namespace FileTransfer
+{
+	namespace Upload
+	{
+		constexpr static char Code = 0x05;
+		struct Request
+		{
+			StaticString<128> fileName;
+			size_t fileSize;
+		};
+		
+		struct Response
+		{
+			constexpr static char InvalidSizeCode = 0x01;
+			constexpr static char InvalidNameCode = 0x02;
+			constexpr static char AcceptCode = 0x03;
+			
+			char code;
+		};
+	}
+	
+	namespace Download
+	{
+		constexpr static char Code = 0x06;
+		struct Request
+		{
+			StaticString<128> fileName;
+		};
+		
+		struct Response
+		{
+			constexpr static char FileNotFoundCode = 0x01;
+			constexpr static char AcceptCode = 0x02;
+			
+			size_t fileSize;
+			char code;
+		};
+	}
+}
 
 
 // UDP

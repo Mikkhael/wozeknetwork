@@ -12,12 +12,14 @@ class FileManager
 	
 	fs::path workingDirectory;
 	fs::path mapFilesFolder = "maps";
+	fs::path anyFilesFolder = "otherFiles";
 	
 	std::optional<asio::io_context::strand> strand;
 	
 	void initDirectories()
 	{
 		fs::create_directory(workingDirectory / mapFilesFolder);
+		fs::create_directory(workingDirectory / anyFilesFolder);
 	}
 	
 public:
@@ -83,6 +85,27 @@ public:
 		workingDirectory.make_preferred();
 		initDirectories();
 		return true;
+	}
+	
+	// Any Files
+	
+	fs::path getPathToFile(std::string_view name)
+	{
+		return workingDirectory / anyFilesFolder / name;
+	}
+	
+	size_t getFileSize(const fs::path& path)
+	{
+		if(!fs::exists(path) || !fs::is_regular_file(path))
+		{
+			return 0;
+		}
+		return fs::file_size(path);
+	}
+	
+	void deleteFile(const fs::path& path)
+	{
+		fs::remove(path);
 	}
 	
 	// MapFiles

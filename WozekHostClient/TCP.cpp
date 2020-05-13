@@ -141,6 +141,111 @@ void Connection::downloadMap(data::IdType id, fs::path path, Callback requestCal
 	
 }
 
+void Connection::uploadFile(fs::path path, std::string name, Callback requestCallback)
+{
+	auto errorHandler = [=](const Error& err)
+	{
+		logError(err);
+		requestCallback(CallbackCode::CriticalError);
+	};
+		
+	if(!fs::is_regular_file(path))
+	{
+		logError("File dosen't exist: ", path);
+		requestCallback(CallbackCode::Error);
+		return;
+	}
+	
+	data::FileTransfer::Upload::Request reqHeader;
+	
+	reqHeader.fileSize = fs::file_size(path);
+	std::memcpy(reqHeader.fileName, name.data(), name.size() + 1);
+	reqHeader.fileName[sizeof(reqHeader.fileName) - 1] = '\0';
+	
+	size_t off = 0;
+	off += writeObjectToBuffer(data::FileTransfer::Upload::Code, off);
+	off += writeObjectToBuffer(reqHeader, off);
+	asyncWrite(off, ioHandler(
+	[=]{
+		asyncRead(sizeof(data::FileTransfer::Upload::Response), ioHandler([=]{
+			data::FileTransfer::Upload::Response resHeader;
+			readObjectFromBuffer(resHeader);
+			if(resHeader.code == data::FileTransfer::Upload::Response::InvalidSizeCode)
+			{
+				log("Invalid size specified");
+				requestCallback(CallbackCode::Error);
+				return;
+			}
+			if(resHeader.code == data::FileTransfer::Upload::Response::InvalidNameCode)
+			{
+				log("Invalid name specified");
+				requestCallback(CallbackCode::Error);
+				return;
+			}
+			if(resHeader.code != data::FileTransfer::Upload::Response::AcceptCode)
+			{
+				log("Unknown response code received");
+				requestCallback(CallbackCode::CriticalError);
+				return;
+			}
+			
+			log("Initiating transfer of file ", path, " with size of ", reqHeader.fileSize, " bytes as file named \"", reqHeader.fileName, '"');
+			initiateFileUpload(path, 4*1024*1024, 1300, requestCallback);
+			
+		}, errorHandler));
+	}, errorHandler ));
+}
+
+void Connection::downloadFile(fs::path path, std::string name, Callback requestCallback)
+{
+	auto errorHandler = [=](const Error& err)
+	{
+		logError(err);
+		requestCallback(CallbackCode::CriticalError);
+	};
+	
+	std::ofstream fileTest(path);
+	if(!fileTest.is_open())
+	{
+		logError("Cannot open file: ", path);
+		requestCallback(CallbackCode::Error);
+		return;
+	}
+	
+	data::FileTransfer::Download::Request reqHeader;
+	std::memcpy(reqHeader.fileName, name.data(), name.size() + 1);
+	reqHeader.fileName[sizeof(reqHeader.fileName) - 1] = '\0';
+	
+	size_t off = 0;
+	off += writeObjectToBuffer(data::FileTransfer::Download::Code, off);
+	off += writeObjectToBuffer(reqHeader, off);
+	asyncWrite(off, ioHandler(
+	[=]{
+		asyncRead(sizeof(data::FileTransfer::Download::Response), ioHandler([=]{
+			data::FileTransfer::Download::Response resHeader;
+			readObjectFromBuffer(resHeader);
+			if(resHeader.code == data::FileTransfer::Download::Response::FileNotFoundCode)
+			{
+				log("File named ", reqHeader.fileName, " not found");
+				requestCallback(CallbackCode::Error);
+				return;
+			}
+			if(resHeader.code != data::FileTransfer::Download::Response::AcceptCode)
+			{
+				log("Unknown response code received");
+				requestCallback(CallbackCode::CriticalError);
+				return;
+			}
+			
+			log("Initiating download of file named ", reqHeader.fileName, " of size ", resHeader.fileSize, " to be saved as ", path);
+			initiateFileDownload(path, resHeader.fileSize, 4*1024*1024, requestCallback);
+			
+		}, errorHandler));
+	}, errorHandler ));
+	
+}
+
+
 void Connection::startTheWorld(Callback requestCallback)
 {
 	auto errorHandler = [=](const Error& err)

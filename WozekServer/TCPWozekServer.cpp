@@ -82,6 +82,16 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 			handleStartTheWorld();
 			break;
 		}
+		case data::FileTransfer::Upload::Code :
+		{
+			handleUploadFile();
+			break;
+		}
+		case data::FileTransfer::Download::Code :
+		{
+			handleDownloadFile();
+			break;
+		}
 		default:
 		{
 			logError(Logger::Error::TcpInvalidRequests, "Request code not recognized");
@@ -240,6 +250,83 @@ void WozekConnectionHandler::finalizeDownloadMap(data::DownloadMap::RequestHeade
 {
 	log("Map downloaded with id", header.hostId, " completed successfully");
 	awaitRequest();
+}
+
+/// Files ///
+
+void WozekConnectionHandler::handleUploadFile()
+{
+	log("Handling Upload File Request");
+	asyncReadObject<data::FileTransfer::Upload::Request>(asyncBranch(
+	[=](auto& reqHeader)
+	{
+		data::FileTransfer::Upload::Response resHeader;
+		if(reqHeader.fileSize <= 0)
+		{
+			log("Invalid file size specified");
+			resHeader.code = data::FileTransfer::Upload::Response::InvalidSizeCode;
+			sendTerminatingMessageObject(resHeader);
+			return;
+		}
+		size_t fileNameLength = strlen(reqHeader.fileName);
+		for(size_t i=0; i < fileNameLength; i++)
+		{
+			char c = reqHeader.fileName[i];
+			if(!( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (c == '.' || c == '_') ))
+			{
+				log("Invalid file name specified. ", "character on position ", i, ": \"", c, "\" (", static_cast<int>(c), ")");
+				resHeader.code = data::FileTransfer::Upload::Response::InvalidNameCode;
+				sendTerminatingMessageObject(resHeader);
+				return;
+			}
+		}
+		
+		// Request accepted
+		
+		fs::path path = fileManager.getPathToFile(reqHeader.fileName);
+		fileManager.deleteFile(path);
+		
+		resHeader.code = data::FileTransfer::Upload::Response::AcceptCode;
+		asyncWriteObject(resHeader, asyncBranch([=]{ initiateFileTransferReceive(reqHeader.fileSize, path, [=](bool success){
+			if(success)
+			{
+				log("File uploaded successfully: size: ", reqHeader.fileSize, ", path:", path);
+				awaitRequest();
+			}
+		}); }));
+	}));
+}
+
+void WozekConnectionHandler::handleDownloadFile()
+{
+	log("Handling Download File Request");
+	asyncReadObject<data::FileTransfer::Download::Request>(asyncBranch(
+	[=](auto& reqHeader)
+	{
+		data::FileTransfer::Download::Response resHeader;
+		fs::path path = fileManager.getPathToFile(reqHeader.fileName);
+		size_t fileSize = fileManager.getFileSize(path);
+		
+		if(fileSize == 0)
+		{
+			log("File ", path, " dosent exist");
+			resHeader.code = data::FileTransfer::Download::Response::FileNotFoundCode;
+			sendTerminatingMessageObject(resHeader);
+			return;
+		}
+		
+		// Request accepted
+		
+		resHeader.code = data::FileTransfer::Download::Response::AcceptCode;
+		resHeader.fileSize = fileSize;
+		asyncWriteObject(resHeader, asyncBranch([=]{ initiateFileTransferSend(path, [=](bool success){
+			if(success)
+			{
+				log("File downloaded successfully: size: ", fileSize, ", path:", path);
+				awaitRequest();
+			}
+		}); }));
+	}));
 }
 
 

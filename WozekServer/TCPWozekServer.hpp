@@ -162,6 +162,11 @@ private:
 	void handleDownloadMapRequest();
 	void finalizeDownloadMap(data::DownloadMap::RequestHeader header);
 	
+	// Any Files Transfer
+	
+	void handleUploadFile();
+	void handleDownloadFile();
+	
 	// World
 	
 	void handleStartTheWorld();

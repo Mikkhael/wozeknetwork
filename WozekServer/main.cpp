@@ -120,7 +120,7 @@ int main(int argc, char** argv)
 	try
 	{
 			
-		std::cout << "Rinning on main thread\n";
+		std::cout << "Running on main thread\n";
 		ioContext.run();
 		std::cout << "Main thread ended.\n";
 		

@@ -46,6 +46,9 @@ What do you want to do?
 3. Send a map file
 4. Download a map file
 5. Start the world
+
+6. Upload any file
+7. Download any file
 ---
 UDP functions:
 a. Send "UpdateState"
@@ -129,6 +132,16 @@ a. Send "UpdateState"
 			case '5':
 				{
 					startTheWorld();
+					return;
+				}
+			case '6':
+				{
+					uploadAnyFile();
+					return;
+				}
+			case '7':
+				{
+					downloadAnyFile();
 					return;
 				}
 			case 'a':
@@ -221,6 +234,47 @@ a. Send "UpdateState"
 	{		
 		tcpConnection.cancelHeartbeat();
 		tcpConnection.startTheWorld(getDefaultCallback());
+	}
+	
+	void uploadAnyFile()
+	{
+		std::string path;
+		std::string name;
+		
+		std::cout << "Input path to the file to send: ";
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, path);
+		std::cout << "Input name of the file to send (only letters, numbers, '.' and '_' ; max 125 characters): ";
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, name);
+		if(name.size() > 125)
+			name.resize(125);
+		
+		tcpConnection.cancelHeartbeat();
+		tcpConnection.uploadFile(path, name, getDefaultCallback());
+	}
+	
+	void downloadAnyFile()
+	{
+		
+		std::string path;
+		std::string name;
+		
+		std::cout << "Input path to save the file as: ";
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, path);
+		std::cout << "Input name of the file to download: ";
+		if(!std::cin.eof())
+			while(std::cin.peek() == '\n') std::cin.get();
+		std::getline(std::cin, name);
+		if(name.size() > 125)
+			name.resize(125);
+		
+		tcpConnection.cancelHeartbeat();
+		tcpConnection.downloadFile(path, name, getDefaultCallback());
 	}
 	
 	void udpUpdateState()

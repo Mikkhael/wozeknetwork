@@ -303,6 +303,11 @@ public:
 	void uploadMap( fs::path path, Callback requestCallback );
 	void downloadMap( data::IdType id, fs::path path, Callback requestCallback );
 	
+	// Any Files
+	
+	void uploadFile( fs::path path, std::string name, Callback requestCallback );
+	void downloadFile( fs::path path, std::string name, Callback requestCallback );
+	
 	// World
 	
 	void startTheWorld( Callback requestCallback );
