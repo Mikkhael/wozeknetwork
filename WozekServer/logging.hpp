@@ -21,6 +21,9 @@ public:
 	SMARTENUM( Log, 
 			TcpActiveConnections, TcpTotalConnections)
 	
+	bool logChanged = true;
+	bool errorChanged = true;
+	
 private:
 	
 	auto getTimestamp() { return std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count(); }
@@ -55,7 +58,7 @@ private:
 	void saveLogsRecord()
 	{
 		auto now = getTimestamp();
-		if(errorFile.is_open() && !errorFile.fail())
+		if(errorChanged && errorFile.is_open() && !errorFile.fail())
 		{
 			errorFile << now;
 			for(size_t i=0; i<ErrorSize; i++)
@@ -64,8 +67,9 @@ private:
 			}
 			errorFile << '\n';
 			errorFile.flush();
+			errorChanged = false;
 		}
-		if(logFile.is_open() && !logFile.fail())
+		if(logChanged && logFile.is_open() && !logFile.fail())
 		{
 			logFile << now;
 			for(size_t i=0; i<LogSize; i++)
@@ -74,6 +78,7 @@ private:
 			}
 			logFile << '\n';
 			logFile.flush();
+			logChanged = false;
 		}
 	}
 	
@@ -174,6 +179,7 @@ public:
 	void log(const Log name, const long long n = 1)
 	{
 		asio::post(getStrand(), [=]{ 
+			logChanged = true;
 			logArr[static_cast<int>(name)] += n;
 		});
 	}
@@ -181,6 +187,7 @@ public:
 	void error(const Error name, const long long n = 1)
 	{
 		asio::post(getStrand(), [=]{ 
+			errorChanged = true;
 			errorArr[static_cast<int>(name)] += n;
 		});
 	}
