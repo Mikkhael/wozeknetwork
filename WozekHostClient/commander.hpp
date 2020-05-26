@@ -170,11 +170,16 @@ a. Send "UpdateState"
 		std::cout << " port: ";
 		std::cin >> port;
 		
-		std::cout << "Connecting...\n";
+		std::cout << "Connecting..";
 		
 		udpConnection.setRemoteEndpoint(ip, port);
 		
+		std::cout << "..";
+		
 		tcpConnection.cancelHeartbeat();
+		
+		std::cout << "..\n";
+		
 		tcpConnection.resolveAndConnect(ip, port, getDefaultCallback());
 	}
 

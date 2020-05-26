@@ -1,3 +1,7 @@
+#ifdef DLL
+static_assert(false);
+#endif // DLL
+
 #include "Everything.hpp"
 
 #include <iostream>

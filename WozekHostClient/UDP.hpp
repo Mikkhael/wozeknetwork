@@ -81,35 +81,46 @@ public:
 		socket.open(asioudp::v4());
 	}
 	
-	void setRemoteEndpoint(const std::string& ip, const std::string& port)
+	bool setRemoteEndpoint(const std::string& ip, const std::string& port)
 	{
-		remoteEndpoint = *resolver.resolve(asioudp::v4(), ip, port).begin();
+		Error err;
+		auto results = resolver.resolve(asioudp::v4(), ip, port, err);
 		
+		if(err)
+		{
+			logError("Cannot resolve UDP endpoint: ", err);
+			return false;
+		}
+			
+		
+		remoteEndpoint = *results.begin();
+		return true;
 	}
 	
 	/// Logging
 	
 	std::ostream& printPrefix(std::ostream& os) // TODO: add timestamp
 	{
+		
 		os << "[ ";
 		if(socket.is_open())
-			os << socket.remote_endpoint() << ' ';
+			os << remoteEndpoint << ' ';
 		return os << "] ";
 		
 	}
 	template <typename ...Ts>
 	void log(Ts ...args)
 	{
-		#ifndef SILENT
+		#ifndef DLL_SILENT
 		(printPrefix(std::clog) << ... << args) << '\n'; 
-		#endif // SILENT
+		#endif // DLL_SILENT
 	}
 	template <typename ...Ts>
 	void logError(Ts ...args)
 	{
-		#ifndef SILENT
+		#ifndef DLL_SILENT
 		((printPrefix(std::cerr) << "Error ") << ... << args) << '\n'; 
-		#endif // SILENT
+		#endif // DLL_SILENT
 	}
 	
 	

@@ -38,6 +38,8 @@ class Connection
 	static constexpr size_t bufferSize = 4096;
 	std::array<char, bufferSize> buffer;
 	
+	bool isHeartbeatEnabled = false;
+	
 	asio::steady_timer heartbeatTimer;
 	asio::steady_timer timeoutTimer;
 	
@@ -46,7 +48,7 @@ class Connection
 	
 	void defaultErrorHandler(const Error& err)
 	{
-		std::cout << " Error: " << err << '\n';
+		logError(err);
 	}
 	
 	/// State
@@ -80,16 +82,16 @@ public:
 	template <typename ...Ts>
 	void log(Ts ...args)
 	{
-		#ifndef SILENT
+		#ifndef DLL_SILENT
 		(printPrefix(std::clog) << ... << args) << '\n'; 
-		#endif // SILENT
+		#endif // DLL_SILENT
 	}
 	template <typename ...Ts>
 	void logError(Ts ...args)
 	{
-		#ifndef SILENT
+		#ifndef DLL_SILENT
 		((printPrefix(std::cerr) << "Error ") << ... << args) << '\n'; 
-		#endif // SILENT
+		#endif // DLL_SILENT
 	}
 	
 	/// Async ///
@@ -199,12 +201,24 @@ public:
 	
 	void startHeartbeat()
 	{
+		if(!isHeartbeatEnabled)
+			return;
+		
 		heartbeatTimer.expires_after(heartbeatInterval);
 		heartbeatTimer.async_wait([this](const Error& err){heartbeatHandler(err);});
 	}
 	void cancelHeartbeat()
 	{
 		heartbeatTimer.cancel();
+	}
+	void disableHeartbeat()
+	{
+		isHeartbeatEnabled = false;
+		cancelHeartbeat();
+	}
+	void enableHeartbeat()
+	{
+		isHeartbeatEnabled = true;
 	}
 	void heartbeatHandler(const Error& err)
 	{

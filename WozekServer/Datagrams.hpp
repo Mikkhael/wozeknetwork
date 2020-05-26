@@ -97,6 +97,9 @@ namespace SegmentedTransfer
 		size_t size;
 	};
 	
+	static_assert(sizeof(SegmentAck)    == 1);
+	static_assert(sizeof(SegmentHeader) == 8);
+	
 }
 
 namespace UploadMap
@@ -177,6 +180,9 @@ namespace FileTransfer
 			
 			char code;
 		};
+		
+		static_assert(sizeof(Request)  == 128 + 8);
+		static_assert(sizeof(Response) == 1);
 	}
 	
 	namespace Download
@@ -195,6 +201,10 @@ namespace FileTransfer
 			size_t fileSize;
 			char code;
 		};
+		
+		
+		static_assert(sizeof(Request)  == 128);
+		static_assert(sizeof(Response) == 16);
 	}
 }
 

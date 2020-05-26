@@ -18,7 +18,7 @@ void Connection::updateState(Callback requestCallback)
 	
 	if(err)
 	{
-		std::cout << "Error while sending udp UpdateState: " << err << '\n';
+		logError("Error while sending udp UpdateState: ", err);
 	}
 	
 	requestCallback(err ? CallbackCode::Error : CallbackCode::Success);
