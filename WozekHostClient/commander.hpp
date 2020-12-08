@@ -4,11 +4,111 @@
 
 #include <string>
 #include <iostream>
-#include "TCP.hpp"
-#include "UDP.hpp"
+#include "ClientTCP.hpp"
+#include "ClientUDP.hpp"
 #include <filesystem>
 namespace fs = std::filesystem;
 
+class Commander
+{
+	asio::io_context& ioContext;
+	
+	std::map< std::string, std::pair< std::string, void (Commander::*)() > > MenuMap;
+
+public:
+	
+	
+	tcp::WozekSessionClient tcpConnection;
+	//udp::Connection udpConnection;
+	
+	Commander(asio::io_context& ioContext_)
+		: ioContext(ioContext_), tcpConnection(ioContext_) //, udpConnection(ioContext_)
+	{
+		MenuMap.insert({ "1", {"Connect to TCP Server", &Commander::connectToServer} });
+		MenuMap.insert({ "2", {"Send TCP Heartbeat", &Commander::sendTcpHeartbeat} });
+		MenuMap.insert({ "3", {"Send TCP Echo Message", &Commander::sendTcpEchoMessage} });
+	}
+	
+	void start()
+	{
+		AsioAsync::post([=]{enterMenu();});
+	}
+	void enterMenuAsync()
+	{
+		AsioAsync::post([=]{enterMenu();});
+	}
+	
+	void enterMenu()
+	{
+		std::cout << "========\nChoose an option:\n";
+		for(const auto& op : MenuMap) {
+			std::cout << op.first << '\t' << op.second.first << '\n';
+		}
+		std::cout << "======== ";
+		std::string option;
+		std::cin >> option;
+		
+		auto op = MenuMap.find(option);
+		if(op != MenuMap.end())
+		{
+			AsioAsync::post([=]{ ((this)->*(op->second.second))(); });
+			return;
+		}
+		enterMenuAsync();
+	}
+	
+	void connectToServer()
+	{
+		tcpConnection.shutdownSession();
+		std::string hostname, port;
+		std::cout << "Hostname & Port: ";
+		std::cin >> hostname >> port;
+		
+		if(!tcpConnection.resolveAndConnect( hostname, port ))
+		{
+			std::cout << "Failed to connect\n";
+		}
+		else
+		{
+			std::cout << "Connected successfully\n";
+		}
+		
+		enterMenuAsync();
+	}
+	void sendTcpHeartbeat()
+	{
+		std::cout << "Send Heartbeat\n";
+		tcpConnection.pushCallbackStack([=](CallbackResult::Ptr result){
+			if (result->isCritical()) {
+				std::cout << "Critilac error occured\n";
+			} else {
+				std::cout << "Heartbeat Sent Successfully\n";
+			}
+			enterMenuAsync();
+		});
+		tcpConnection.sendHeartbeat();
+	}
+	void sendTcpEchoMessage()
+	{
+		std::cout << "Send TCP Echo Message\nEnter Messgae:";
+		std::string message;
+		std::cin >> message;
+		tcpConnection.pushCallbackStack([=](CallbackResult::Ptr result){
+			if (result->isCritical()) {
+				std::cout << "Critilac error occured\n";
+			} else {
+				auto valueResult = dynamic_cast< ValueCallbackResult<std::string>* >(result.get());
+				std::cout << "Received Echo response with message: " << valueResult->value << '\n';
+			}
+			enterMenuAsync();
+		});
+		tcpConnection.performEchoRequest(message);
+	}
+};
+
+
+
+/*
 class Commander
 {
 	asio::io_context& ioContext;
@@ -287,3 +387,4 @@ a. Send "UpdateState"
 		udpConnection.updateState(getDefaultUdpCallback());
 	}
 };
+*/

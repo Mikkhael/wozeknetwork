@@ -1,6 +1,6 @@
 #pragma once
 
-#include "asioWrapper.hpp"
+#include "asio_lib.hpp"
 #include "DatabaseData.hpp"
 #include <tuple>
 #include <iostream>
@@ -35,7 +35,7 @@ public:
 	void setDatabase(Database& database_){ setDatabase(&database_); }
 	void setDatabase(Database* database_){ database = database_; }
 	
-	void createStrand(asio::io_context& ioContext) {strand.emplace(ioContext);}
+	void setContext(asio::io_context& ioContext) {strand.emplace(ioContext);}
 	bool hasStrand() {return strand.has_value();}
 	auto& getStrand() {return strand.value();}
 	
@@ -111,7 +111,8 @@ IdType DatabaseManager::createAndAddRecord(const typename Database::recordType<t
 	
 	auto& h = database->get<table>()[id].header;
 	h = header;
-	return h.id = id;
+	h.id = id;
+	return id;
 }
 
 template<Database::Table table>

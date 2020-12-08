@@ -1,6 +1,6 @@
 #pragma once
 
-#include "asioWrapper.hpp"
+#include "asio_lib.hpp"
 
 #include <variant>
 #include <fstream>
@@ -12,6 +12,11 @@ namespace fs = std::filesystem;
 namespace States
 {
 	struct Empty {};
+	
+	struct EchoMessageBuffer
+	{
+		std::string buffer;
+	};
 	
 	struct FileTransferReceive
 	{
@@ -70,5 +75,31 @@ namespace States
 	
 	
 	
-	using Type = std::variant<Empty, FileTransferReceive, FileTransferSend, FileTransferReceiveThreadsafe, FileTransferSendThreadsafe>;
+	using Type = std::variant<Empty, EchoMessageBuffer, FileTransferReceive, FileTransferSend, FileTransferReceiveThreadsafe, FileTransferSendThreadsafe>;
 }
+
+
+class Statefull
+{
+	States::Type state;
+	
+public:
+	
+	template <typename T>
+	T& setState()
+	{
+		//std::cout << "TUTAJ\n";
+		return state.emplace<T>();
+	}
+	template <typename T>
+	T& getState()
+	{
+		return std::get<T>(state);
+	}
+	
+	void resetState()
+	{
+		//std::cout << "TEZTUTAJ\n";
+		state.emplace<States::Empty>();
+	}
+};

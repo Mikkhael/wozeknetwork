@@ -12,18 +12,24 @@ static_assert(false);
 int main()
 {
 	
-	asio::io_context ioContext;	
-	Commander commander(ioContext);
+	asio::io_context ioContext;
+	AsioAsync::setGlobalAsioContext(ioContext);
 	
+	Commander commander(ioContext);
 	commander.start();
 	
 	
-	std::thread t([&]{ioContext.run(); std::cout << "Additional thread ended\n";});
-	ioContext.run();
+	//std::thread t([&]{ioContext.run(); std::cout << "Additional thread ended\n";});
+	try
+	{
+		ioContext.run();
+	}
+	catch(std::exception& e)
+	{
+		std::cout << "!!!!! Exception: !!!!!!\n" << e.what() << '\n';
+	}
+	
 	
 	
 	std::cout << "Main thread ended\n";
-	
-	t.join();
-	
 }

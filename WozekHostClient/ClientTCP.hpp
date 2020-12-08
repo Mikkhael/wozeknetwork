@@ -13,7 +13,73 @@
 
 namespace fs = std::filesystem;
 
+namespace tcp
+{
 
+
+
+class WozekSessionClient
+	: public BasicSession<WozekSessionClient, ArrayBuffer< 1<<13 >, true>, public Statefull
+{
+	
+public:
+	WozekSessionClient(asio::io_context& ioContext)
+		: BasicSession(ioContext)
+	{
+		//assert(sharedFromThis().get() == this);
+	}
+	
+	~WozekSessionClient()
+	{
+		std::cout << "Client TCP Session Destroyed!\n";
+	}
+	
+	
+	void performEchoRequest(const std::string& message);
+	void sendHeartbeat();
+
+protected:
+	
+	void receiveEchoResponsePart();
+	void handleEchoResponsePart(const char c);
+	void finilizeEcho(std::string& receiveedMessage);
+	
+	bool errorCritical(const Error& err) {
+		if(err == asio::error::eof){
+			std::cout << "TCP Connection unexpectedly closed\n";
+		}else{
+			std::cout << "TCP Critical Error: " << err << '\n';
+		}
+		returnCallbackCriticalError();
+		return true;
+	}
+protected:
+	virtual void timeoutHandler_impl()
+	{
+		std::cout << "TCP Socket timed out\n";
+	}
+	virtual bool start_impl()
+	{
+		std::cout << "TCP connection started (" << getRemote() << ")\n";
+		return true;
+	}
+	virtual void shutdown_impl()
+	{
+		std::cout << "TCP Shutting down...\n";
+	}
+	virtual void startError_impl(const Error& err)
+	{
+		std::cout << "TCP Unknown error while connecting to the remote endpoint: " << err << "\n";
+	}
+};
+
+
+
+
+}
+
+
+/*
 
 namespace tcp
 {
@@ -340,3 +406,4 @@ public:
 
 }
 
+*/

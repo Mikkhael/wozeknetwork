@@ -9,7 +9,7 @@
 #include <memory>
 
 namespace tcp {
-	class WozekConnectionHandler;
+	class WozekSession;
 }
 
 namespace db
@@ -26,7 +26,7 @@ struct Host
 	
 	struct Network
 	{
-		std::weak_ptr<tcp::WozekConnectionHandler> tcpConnection;
+		std::weak_ptr<tcp::WozekSession> tcpConnection;
 	};
 	
 	Header header;
@@ -38,7 +38,7 @@ struct Controller
 	using Header = data::Controller::Header;
 	struct Network
 	{
-		std::weak_ptr<tcp::WozekConnectionHandler> tcpConnection;
+		std::weak_ptr<tcp::WozekSession> tcpConnection;
 	};
 	
 	Header header;

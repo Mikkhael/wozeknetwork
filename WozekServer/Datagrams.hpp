@@ -30,6 +30,8 @@ using Vector3f = Vector3<float>;
 
 
 
+
+
 /// Data Structures ///
 
 namespace Host
@@ -39,6 +41,8 @@ namespace Host
 		IdType id;
 		StaticString<32> name;
 	};
+	
+	static_assert(sizeof(Header) == sizeof(Header::id) + sizeof(Header::name));
 }
 
 namespace Controller
@@ -63,6 +67,15 @@ namespace Controller
 // TCP
 
 constexpr char HeartbeatCode = 0x00;
+
+
+struct EchoRequest
+{
+	constexpr static IdType request_id = 1;
+	// char* - null terminated string of any length up to some MAX length
+};
+
+
 namespace RegisterNewHost
 {
 	constexpr char Code = 0x01;

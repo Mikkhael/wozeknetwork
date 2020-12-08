@@ -29,6 +29,7 @@ int main(int argc, char** argv)
 	const size_t numberOfAdditionalThreads = threads;
 	
 	asio::io_context ioContext;
+	AsioAsync::setGlobalAsioContext(ioContext);
 	
 	const fs::path logsPath = fs::path(dir) / "logs";
 	const fs::path configPath = fs::path(dir) / "config";
@@ -64,16 +65,16 @@ int main(int argc, char** argv)
 		return 0;
 	}
 	
-	config.setStrand(ioContext);
 	if(!config.init(configPath / "allowedips4.txt", std::chrono::seconds(3600)))
 	{
 		std::cout << "Cannot inicialize config\n";
 		return 0;
 	}
+	ipAuthorizer.init(ioContext);
 	
 	db::Database database;
 	db::databaseManager.setDatabase(database);
-	db::databaseManager.createStrand(ioContext);
+	db::databaseManager.setContext(ioContext);
 	
 	if( !fileManager.setWorkingDirectory(dir) )
 	{

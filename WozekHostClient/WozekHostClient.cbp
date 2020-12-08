@@ -79,17 +79,16 @@
 			<Add library="wsock32" />
 		</Linker>
 		<Unit filename="../WozekServer/Datagrams.hpp" />
-		<Unit filename="../WozekServer/asioWrapper.hpp" />
 		<Unit filename="../WozekServer/segmentedFileTransfer.hpp" />
 		<Unit filename="../WozekServer/states.hpp" />
+		<Unit filename="ClientTCP.cpp" />
+		<Unit filename="ClientTCP.hpp" />
+		<Unit filename="ClientUDP.cpp" />
+		<Unit filename="ClientUDP.hpp" />
 		<Unit filename="Everything.hpp" />
 		<Unit filename="GameManager.cpp" />
 		<Unit filename="GameManager.hpp" />
 		<Unit filename="Imported.hpp" />
-		<Unit filename="TCP.cpp" />
-		<Unit filename="TCP.hpp" />
-		<Unit filename="UDP.cpp" />
-		<Unit filename="UDP.hpp" />
 		<Unit filename="commander.hpp" />
 		<Unit filename="dllexports.cpp">
 			<Option target="DLL" />

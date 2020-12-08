@@ -10,48 +10,21 @@ namespace tcp
 	
 /// Basic ///
 
-void WozekConnectionHandler::operator()()
-{
-	Error err;
-	remoteEndpoint = socket.remote_endpoint(err);
-	if(err)
-	{
-		logger.output("Unknown error while connecting to the remote endpoint: ", err);
-		logger.error(Logger::Error::TcpUnknownError);
-		return;
-	}
-	
-	
-	log("New connection");
-	logger.log(Logger::Log::TcpActiveConnections);
-	logger.log(Logger::Log::TcpTotalConnections);
-	
-	
-	//debugHandler();
-	awaitRequest();
-}
-
-
-void WozekConnectionHandler::awaitRequest(bool silent)
+void WozekSession::awaitRequest(bool silent)
 {
 	if(!silent)
 		log("Awaiting request");
 	
 	resetState();
 	
-	asyncReadToMainBuffer(1, asyncBranch(
-		[=]{handleReceivedRequestId(buffer[0]);},
-		&WozekConnectionHandler::logAndAbortErrorHandlerOrDisconnect
-	));
-}
-
-void WozekConnectionHandler::sendTerminatingMessage(const char* bytes, size_t length)
-{
-	asyncWriteFromMemory(bytes, length, asyncBranch(&WozekConnectionHandler::awaitRequest));
+	asyncReadObjects<char>(
+		&WozekSession::handleReceivedRequestId,
+		&WozekSession::errorDisconnect
+	);
 }
 
 
-void WozekConnectionHandler::handleReceivedRequestId(char id)
+void WozekSession::handleReceivedRequestId(char id)
 {
 	if(id == data::HeartbeatCode) // heartbeat
 	{
@@ -62,6 +35,12 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 	log("Handling request code: ", static_cast<int>(id));
 	switch (id)
 	{
+		case data::EchoRequest::request_id:
+		{
+			receiveEchoRequest();
+			break;
+		}
+		/*
 		case data::RegisterNewHost::Code : // Register as new host
 		{
 			handleRegisterHostRequest();
@@ -92,16 +71,67 @@ void WozekConnectionHandler::handleReceivedRequestId(char id)
 			handleDownloadFile();
 			break;
 		}
+		*/
 		default:
 		{
 			logError(Logger::Error::TcpInvalidRequests, "Request code not recognized");
-			// if not recognized, close connection
+			shutdownSession(); // if not recognized, close connection
 		}
 	}
 }
 
+/// Echo ///
+
+void WozekSession::receiveEchoRequest()
+{
+	this->setState<States::EchoMessageBuffer>();
+	log("Receiving Echo Request");
+	receiveEchoRequestMessagePart();
+}
+void WozekSession::receiveEchoRequestMessagePart()
+{	
+	asyncReadObjects<char>(
+		&WozekSession::handleEchoRequestMessagePart,
+		&WozekSession::errorAbort
+	);
+}
+void WozekSession::handleEchoRequestMessagePart(const char c)
+{
+	if(c == '\0')
+	{
+		sendEchoResponse();
+		return;
+	}
+	auto& state = getState<States::EchoMessageBuffer>();
+	if(state.buffer.size() >= MaxEchoRequestMessageLength)
+	{
+		abortEchoRequest();
+		return;
+	}
+	state.buffer += c;
+	receiveEchoRequestMessagePart();
+}
+void WozekSession::abortEchoRequest()
+{
+	logError(Logger::Error::TcpEchoTooLong, "Received echo message was too long (over ", MaxEchoRequestMessageLength, " characters)");
+	shutdownSession();
+}
+
+void WozekSession::sendEchoResponse()
+{
+	auto& state = getState<States::EchoMessageBuffer>();
+	log("Echoing message with length: ", state.buffer.size(), " \"", state.buffer, "\"");
+	asyncWrite(
+		asio::buffer(state.buffer.c_str(), state.buffer.size() + 1),
+		&WozekSession::finilizeRequest,
+		&WozekSession::errorAbort
+	);
+}
+
 
 /// Host ///
+
+/*
 
 void WozekConnectionHandler::handleRegisterHostRequest()
 {
@@ -565,22 +595,6 @@ void WozekConnectionHandler::initiateFileTransferSend(fs::path path, std::functi
 			}));
 		});
 }
-
-
-
-
-/// Other ///
-
-void WozekConnectionHandler::timeoutHandler()
-{
-	logError(Logger::Error::TcpTimeout, "Socket timed out");
-}
-
-void WozekConnectionHandler::shutdownHandler()
-{
-	log("Shutting down...");
-	logger.log(Logger::Log::TcpActiveConnections, -1);
-}
-	
+*/
 }
 

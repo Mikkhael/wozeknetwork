@@ -1,5 +1,5 @@
 #pragma once
-#include "asioWrapper.hpp"
+#include "asio_lib.hpp"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -15,7 +15,10 @@ class Logger
 public:
 	
 	SMARTENUM( Error, 
-			UnknownError, TcpTimeout, TcpInvalidRequests, TcpForbidden, FileSystemError, TcpSegFileTransferError, TcpUnexpectedConnectionClosed,
+			UnknownError,
+			TcpTimeout, TcpInvalidRequests, TcpForbidden,
+			TcpEchoTooLong,
+			FileSystemError, TcpSegFileTransferError, TcpUnexpectedConnectionClosed,
 			TcpConnectionBroken, TcpUnknownError, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)
 	
 	SMARTENUM( Log, 

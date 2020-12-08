@@ -1,6 +1,6 @@
 #pragma once
 
-#include "asioWrapper.hpp"
+#include "asio_lib.hpp"
 
 #include <iostream>
 #include <string>
@@ -12,6 +12,8 @@ namespace fs = std::filesystem;
 
 #include "logging.hpp"
 #include "config.hpp"
+#include "ipAuthorization.hpp"
+#include "fileManager.hpp"
 #include "DatabaseManager.hpp"
 #include "TCPWozekServer.hpp"
 #include "UDPWozekServerState.hpp"
