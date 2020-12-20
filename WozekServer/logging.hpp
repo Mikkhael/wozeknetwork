@@ -18,7 +18,8 @@ public:
 			UnknownError,
 			TcpTimeout, TcpInvalidRequests, TcpForbidden,
 			TcpEchoTooLong,
-			FileSystemError, TcpSegFileTransferError, TcpUnexpectedConnectionClosed,
+			FileSystemError, TcpSegFileTransferError,
+			TcpUnexpectedConnectionClosed,
 			TcpConnectionBroken, TcpUnknownError, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)
 	
 	SMARTENUM( Log, 

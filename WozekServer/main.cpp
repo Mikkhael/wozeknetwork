@@ -81,7 +81,7 @@ int main(int argc, char** argv)
 		std::cout << "Working directory of \"" << dir << "\" (" << fs::absolute(fs::path(dir)) << ") dosent exist\n";
 		return 0;
 	}
-	fileManager.createStrand(ioContext);
+	fileManager.setContext(ioContext);
 	
 	tcp::WozekServer server(ioContext);
 	if(server.start(port))

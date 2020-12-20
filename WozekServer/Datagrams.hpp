@@ -69,10 +69,29 @@ namespace Controller
 constexpr char HeartbeatCode = 0x00;
 
 
+static_assert(sizeof(size_t) == 8);
+
 struct EchoRequest
 {
 	constexpr static IdType request_id = 1;
 	// char* - null terminated string of any length up to some MAX length
+};
+
+namespace SegmentedFileTransfer
+{	
+	struct Header
+	{
+		constexpr static size_t correctStartHeader = 0xAAAAAAAAAAAAAAAA;
+		size_t startHeader;
+		size_t segmentLength;
+	};
+	static_assert(sizeof(Header) == sizeof(Header::startHeader) + sizeof(Header::segmentLength) );
+	
+	enum Error {
+		Good = 0,
+		FileSystem = 1,
+		SegmentTooLong = 2
+	};
 };
 
 

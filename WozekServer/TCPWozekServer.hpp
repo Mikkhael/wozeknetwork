@@ -98,12 +98,25 @@ private:
 	
 		/// Echo ///
 	
-	static constexpr size_t MaxEchoRequestMessageLength = 9000;
+	static constexpr size_t MaxEchoRequestMessageLength = 100;
 	void receiveEchoRequest();
 	void receiveEchoRequestMessagePart();
 	void handleEchoRequestMessagePart(const char c);
 	void abortEchoRequest();
 	void sendEchoResponse();
+	
+	
+		/// File ///
+	
+	static constexpr size_t BigBUfferDefaultSize = 1024 * 1024 * 16;
+	static constexpr size_t BigBufferSubdivisions = 2;
+	void startSegmentedFileReceive(const fs::path path, const size_t totalSize);
+	void receiveSegmentFileHeader();
+	void handleSegmentFileHeader(const data::SegmentedFileTransfer::Header header);
+	void sendSegmentFileError(const data::SegmentedFileTransfer::Error error);
+	void receiveSegmentFileData(const size_t length);
+	void handleSegmentFileData(const size_t length);
+	void finalizeSegmentFileReceive();
 	
 	/*
 		
@@ -172,6 +185,21 @@ private:
 		return true;
 	}
 
+	bool errorCritical(const Error& err)
+	{
+		if(checkIsShutdown())
+		{
+			return true;
+		}
+		
+		if(err == asio::error::eof)
+		{
+			logError(Logger::Error::TcpUnexpectedConnectionClosed, "Connection unexpectedly closed");
+		}
+		logError(Logger::Error::TcpConnectionBroken, err);
+		returnCallbackCriticalError();
+		return true;
+	}
 	
 protected:
 	virtual void timeoutHandler_impl()

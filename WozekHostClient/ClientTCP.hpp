@@ -40,6 +40,18 @@ public:
 
 protected:
 	
+	
+	constexpr static size_t DefaultBigBufferSize = 1024 * 1024 * 16;
+	constexpr static size_t DefaultSegmentsInBuffer = 16;
+	constexpr static size_t DefaultSegmentSize = DefaultBigBufferSize / DefaultSegmentsInBuffer;
+	void startSegmentedFileSend(const fs::path sourcePath);
+	void sendSegmentHeader();
+	void handleSegmentFileHeaderResponseCode(const data::SegmentedFileTransfer::Error error);
+	void sendSegmentFileData();
+	void handleSegmentFileDataResponseCode(const data::SegmentedFileTransfer::Error error);
+	void finalizeSegmentFileSend();
+	
+	
 	void receiveEchoResponsePart();
 	void handleEchoResponsePart(const char c);
 	void finilizeEcho(std::string& receiveedMessage);

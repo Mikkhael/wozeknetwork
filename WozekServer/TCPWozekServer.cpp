@@ -129,6 +129,133 @@ void WozekSession::sendEchoResponse()
 }
 
 
+
+
+/// File ///
+
+void WozekSession::startSegmentedFileReceive(const fs::path path, const size_t totalSize)
+{
+	log("Starting Segmented File Receive. ", path, " (", totalSize, " bytes)");
+	auto& state = setState<States::SegmentedFileTransfer>();
+	state.bigBuffer.resize(BigBUfferDefaultSize);
+	state.bytesRemaining = totalSize;
+	state.fileStream.emplace(getContext(), path, std::ios::trunc | std::ios::out);
+	receiveSegmentFileHeader();
+}
+
+
+void WozekSession::receiveSegmentFileHeader()
+{
+	asyncReadObjects<data::SegmentedFileTransfer::Header>(
+			&WozekSession::handleSegmentFileHeader,
+			&WozekSession::errorCritical
+		);
+}
+
+void WozekSession::handleSegmentFileHeader(const data::SegmentedFileTransfer::Header header)
+{
+	if(header.startHeader != data::SegmentedFileTransfer::Header::correctStartHeader)
+	{
+		logError(Logger::Error::TcpSegFileTransferError, "Received Segment Header has invalid code");
+		sendSegmentFileError(data::SegmentedFileTransfer::SegmentTooLong);
+		return;
+	}
+	
+	auto& state = setState<States::SegmentedFileTransfer>();
+	state.fileSegmentLengthLeft = header.segmentLength;
+	
+	if(state.bytesRemaining < header.segmentLength) // invalid segment length
+	{
+		logError(Logger::Error::TcpSegFileTransferError, "Received Segment Header is too long");
+		sendSegmentFileError(data::SegmentedFileTransfer::SegmentTooLong);
+		return;
+	}
+	
+	asyncWriteObjects(
+		[&]{ receiveSegmentFileData(state.fileSegmentLengthLeft); },
+		&WozekSession::errorCritical,
+		char(data::SegmentedFileTransfer::Error::Good)
+	);
+}
+
+void WozekSession::receiveSegmentFileData(const size_t length)
+{
+	auto& state = setState<States::SegmentedFileTransfer>();
+	auto toReceive = std::min(length, state.bigBuffer.size() - state.bufferFilled);
+	asyncRead(
+		asio::buffer(state.bigBuffer.data() + state.bufferFilled, toReceive),
+		[=](){ handleSegmentFileData(toReceive); },
+		&WozekSession::errorCritical
+	);
+}
+
+void WozekSession::handleSegmentFileData(const size_t length)
+{
+	auto& state = setState<States::SegmentedFileTransfer>();
+	
+	state.bufferFilled += length;
+	state.fileSegmentLengthLeft -= length;
+	state.bytesRemaining -= length;
+	// TODO file multitasking
+	
+	if(!state.internalFileError && state.bufferFilled == state.bigBuffer.size())
+	{
+		state.fileStream->stream.write(state.bigBuffer.data(), state.bigBuffer.size());
+		if(state.fileStream->stream.fail())
+		{
+			state.internalFileError = true;
+			logError(Logger::Error::FileSystemError, "File error while receiving segmented file. Awaiting completion of the segment.");
+		}
+		state.bufferFilled = 0;
+	}
+	
+	if(state.fileSegmentLengthLeft > 0)
+	{
+		receiveSegmentFileData(state.fileSegmentLengthLeft);
+		return;
+	}
+	
+	if(state.internalFileError)
+	{
+		sendSegmentFileError(data::SegmentedFileTransfer::FileSystem);
+		return;
+	}
+	
+	if(state.bytesRemaining == 0)
+	{
+		if(state.bufferFilled > 0)
+		{
+			state.fileStream->stream.write(state.bigBuffer.data(), state.bigBuffer.size());
+			if(state.fileStream->stream.fail())
+			{
+				logError(Logger::Error::FileSystemError, "File error while receiving last segment.");				
+				sendSegmentFileError(data::SegmentedFileTransfer::FileSystem);
+				return;
+			}
+		}
+		
+		finalizeSegmentFileReceive();
+		
+		return;
+	}
+	
+	receiveSegmentFileHeader();
+}
+
+void WozekSession::finalizeSegmentFileReceive()
+{
+	returnCallbackGood();
+}
+
+void WozekSession::sendSegmentFileError(const data::SegmentedFileTransfer::Error error)
+{
+	asyncWriteObjects(
+		&WozekSession::returnCallbackGood,
+		&WozekSession::errorCritical,
+		char(error)
+	);
+}
+
 /// Host ///
 
 /*

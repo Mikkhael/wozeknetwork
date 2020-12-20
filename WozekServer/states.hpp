@@ -1,6 +1,7 @@
 #pragma once
 
 #include "asio_lib.hpp"
+#include "fileManager.hpp"
 
 #include <variant>
 #include <fstream>
@@ -17,6 +18,20 @@ namespace States
 	{
 		std::string buffer;
 	};
+	
+	
+	struct SegmentedFileTransfer
+	{
+		std::vector<char> bigBuffer;
+		size_t bufferFilled = 0;
+		std::optional<FileStream> fileStream;
+		size_t bytesRemaining = 0;
+		size_t fileSegmentLengthLeft = 0;
+		
+		bool internalFileError = false;
+	};
+	
+	/*
 	
 	struct FileTransferReceive
 	{
@@ -72,10 +87,10 @@ namespace States
 		void advance(const size_t bytes) {bigBufferTop += bytes; totalBytesSent += bytes;}
 	};
 	
+	*/
 	
 	
-	
-	using Type = std::variant<Empty, EchoMessageBuffer, FileTransferReceive, FileTransferSend, FileTransferReceiveThreadsafe, FileTransferSendThreadsafe>;
+	using Type = std::variant<Empty, EchoMessageBuffer, SegmentedFileTransfer>;
 }
 
 

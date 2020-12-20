@@ -67,6 +67,70 @@ void WozekSessionClient::finilizeEcho(std::string& receivedMessage)
 	returnCallbackStack(std::move(result_base));
 }
 
+/// File ///
+
+void WozekSessionClient::startSegmentedFileSend(const fs::path sourcePath, const size_t fileSize)
+{
+	auto& state = setState<States::SegmentedFileTransfer>();
+	state.bigBuffer.resize(DefaultBigBufferSize);
+	state.fileStream.emplace(getContext(), sourcePath, std::ios::in | std::ios::binary);
+	state.bytesRemaining = fileSize;
+}
+
+void WozekSessionClient::sendSegmentHeader()
+{
+	auto& state = getState<States::SegmentedFileTransfer>();
+	
+	
+	if(state.bytesRemaining == 0)
+	{
+		
+		return;
+	}
+	
+	if(state.fileSegmentLengthLeft == 0)
+	{
+		state.fileStream.file.read(state.bigBuffer.data(), state.bigBuffer.size());
+		state.fileSegmentLengthLeft = DefaultSegmentsInBuffer;
+	}
+	
+	if(state.bytesRemaining < DefaultSegmentSize)
+	{
+		
+		return;
+	}
+	
+	data::SegmentedFileTransfer::Header header = {}; // TODO
+	
+	asyncWriteObjects(
+		&WozekSessionClient::handleSegmentFileHeaderResponseCode,
+		&WozekSessionClient::errorCritical,
+		header
+	);
+	
+	// TODO ALL
+	
+}
+
+void WozekSessionClient::handleSegmentFileHeaderResponseCode(const data::SegmentedFileTransfer::Error error)
+{
+	
+}
+
+void WozekSessionClient::sendSegmentFileData()
+{
+	
+}
+
+void WozekSessionClient::handleSegmentFileDataResponseCode(const data::SegmentedFileTransfer::Error error)
+{
+	
+}
+
+void WozekSessionClient::finalizeSegmentFileSend()
+{
+	
+}
 
 
 

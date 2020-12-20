@@ -3,28 +3,111 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <atomic>
 #include "Datagrams.hpp"
 #include "asio_lib.hpp"
 
 namespace fs = std::filesystem;
+
+class FileStream
+{
+	asio::io_context& ioContext;
+	asio::io_context::strand strand;
+	
+	std::atomic<int> enqueuedWrites = 0;
+	
+	bool isFlushed = true;
+	
+public:
+	
+	std::fstream stream;
+	
+	FileStream(asio::io_context& ioContext_, const fs::path& path, const std::ios::openmode mode)
+		: ioContext(ioContext_), strand(ioContext_), stream(path, mode)
+	{
+	}
+	
+	template <typename T>
+	bool writeBufferAsync(const char* source, const size_t length, T&& callback)
+	{
+		if(!stream.is_open())
+		{
+			return false;
+		}
+		isFlushed = false;
+		enqueuedWrites++;
+		asio::post(strand, [=](){
+			stream.write(source, length);
+			callback(!stream.fail());
+			enqueuedWrites--;
+		});
+		return true;
+	}
+	
+	template <typename T>
+	bool readFileAsync(char* dest, const size_t length, T&& callback)
+	{
+		if(!stream.is_open())
+		{
+			return false;
+		}
+		asio::post(strand, [=](){
+			stream.read(dest, length);
+			callback(!stream.fail());
+		});
+		return true;
+	}
+	
+	void flushSync()
+	{
+		stream.flush();
+		isFlushed = true;
+	}
+	
+	void closeSync()
+	{
+		stream.close();
+	}
+	
+};
 
 class FileManager
 {
 	
 	fs::path workingDirectory;
 	fs::path mapFilesFolder = "maps";
-	fs::path anyFilesFolder = "otherFiles";
+	fs::path otherFilesFolder = "otherFiles";
 	
-	std::optional<asio::io_context::strand> strand;
+	asio::io_context* ioContextPtr;
 	
 	void initDirectories()
 	{
 		fs::create_directory(workingDirectory / mapFilesFolder);
-		fs::create_directory(workingDirectory / anyFilesFolder);
+		fs::create_directory(workingDirectory / otherFilesFolder);
 	}
 	
-public:
+public:	
+	FileManager() {}
 	
+	bool hasContext() {return ioContextPtr != nullptr;}
+	void setContext(asio::io_context& ioContext) {ioContextPtr = &ioContext;}
+	auto& getContext() {return *ioContextPtr;}
+	
+	bool hasWorkingDirectory() {return workingDirectory.empty();}
+	bool setWorkingDirectory(const fs::path& path) {
+		if(!fs::is_directory(path)) 
+			return false;
+		workingDirectory = path;
+		workingDirectory.make_preferred();
+		initDirectories();
+		return true;
+	}
+	
+	auto getFileStream(const fs::path& path, std::ios::openmode mode)
+	{
+		return FileStream(getContext(), path, mode);
+	}
+		
 	bool writeBufferToFile(const fs::path& path, std::ios::openmode mode, const char* buffer, size_t length)
 	{
 		std::ofstream file(path, mode | std::ios::binary);
@@ -72,27 +155,11 @@ public:
 		return true;
 	}
 	
-	FileManager() {}
-	
-	bool hasStrand() {return strand.has_value();}
-	void createStrand(asio::io_context& ioContext) {strand.emplace(ioContext);}
-	auto& getStrand() {return strand.value();}
-	
-	bool hasWorkingDirectory() {return workingDirectory.empty();}
-	bool setWorkingDirectory(const fs::path& path) {
-		if(!fs::is_directory(path)) 
-			return false;
-		workingDirectory = path;
-		workingDirectory.make_preferred();
-		initDirectories();
-		return true;
-	}
-	
 	// Any Files
 	
-	fs::path getPathToFile(std::string_view name)
+	fs::path getOtherFilesPath(fs::path path)
 	{
-		return workingDirectory / anyFilesFolder / name;
+		return workingDirectory / otherFilesFolder / path;
 	}
 	
 	size_t getFileSize(const fs::path& path)

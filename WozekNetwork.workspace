@@ -3,5 +3,6 @@
 	<Workspace title="WozekNetwork">
 		<Project filename="WozekHostClient/WozekHostClient.cbp" />
 		<Project filename="WozekServer/WozekServer.cbp" />
+		<Project filename="ControllerController/ControllerController.cbp" />
 	</Workspace>
 </CodeBlocks_workspace_file>
