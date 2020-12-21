@@ -12,6 +12,8 @@ constexpr void lookupBytes(const byte* buffor, const int length)
 {
 	for(int i=0; i<length; i++)
 	{
+		if(buffor[i] < 16)
+			std::cout << '0';
 		std::cout << std::hex << static_cast<unsigned int>(buffor[i]) << ' ';
 	}
 }
@@ -46,6 +48,7 @@ void encodeStep(const byte* data, byte* resBuffer)
 {
 	if constexpr (currentOffset == 0)
 	{
+		*(resBuffer+1) = 0;
 		encodeStep<dataLength, byteIndex, 7>(data, resBuffer+1);
 	}
 	else
@@ -70,15 +73,17 @@ void encode(byte opcode, const int dataLength, const byte* data, byte* resBuffer
 {
 	resBuffer[0] = (opcode << (7 - opcodeSize) ) | 0x80;
 	int currentOffset = 7 - opcodeSize;
+	int resIndex = 0;
 	int byteIndex = 0;
 	do{
-		if (currentOffset == 0)
-		{
-			++resBuffer;
+		if (currentOffset == 0){
+			resBuffer[++resIndex] = (data[byteIndex] >> 1);
 			currentOffset = 7;
 		}
-		*(resBuffer++) |= (data[byteIndex] >> (8 - currentOffset));
-		*(resBuffer) = byte(0) | ((data[byteIndex] << (--currentOffset)) & byte(0x7F) );
+		else{
+			resBuffer[resIndex] |= (data[byteIndex] >> (8 - currentOffset));
+		}
+		resBuffer[++resIndex] = byte(0) | ((data[byteIndex] << (--currentOffset)) & byte(0x7F) );
 	}while(++byteIndex < dataLength);
 }
 

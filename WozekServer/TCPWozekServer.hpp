@@ -92,7 +92,8 @@ private:
 	
 	/// Functionality ///
 	
-	void awaitRequest(bool silent = false);
+	void awaitRequest();
+	void awaitRequestSilent();
 	void finilizeRequest() { awaitRequest(); };
 	void handleReceivedRequestId(char id);
 	
@@ -117,6 +118,13 @@ private:
 	void receiveSegmentFileData(const size_t length);
 	void handleSegmentFileData(const size_t length);
 	void finalizeSegmentFileReceive();
+	
+	
+		/// Controller ///
+		
+	void receiveRegisterAsControllerRequest();
+	void handleRegisterAsControllerRequest(const data::RegisterAsController::RequestHeader& request);
+	void finalizeRegisterAsControllerRequest(const data::RegisterAsController::ResponseHeader& response);
 	
 	/*
 		

@@ -7,6 +7,7 @@
 #include <time.h>
 #include <cstdlib>
 #include <vector>
+#include "ControllerSessionClient.hpp"
 
 #include "State.hpp"
 
@@ -33,11 +34,19 @@ void readAll(Device& device)
 
 void f1(State& state)
 {
+	asio::io_context ioContext;
+	asio::executor_work_guard<decltype(ioContext.get_executor())> work{ioContext.get_executor()};
+	
+	tcp::ControllerSessionClient tcpConnection(ioContext);
+	
+	std::thread asioThread( [&]{ ioContext.run(); } );
+	
 	try
 	{
 		char op;
 		while(true)
 		{
+			
 			std::cout << R"(
 =======
 Operations:
@@ -45,6 +54,10 @@ Operations:
 	2 - Show Rotation
 	3 - Set Rotation to FF and Update
 	4 - Custom Request
+	
+	c - Connect to Server
+	r - Register As Controller Request
+	
 )";
 			
 			std::cin >> op;
@@ -64,6 +77,8 @@ Operations:
 			}
 			if(op == '2')
 			{
+				state.rotationState.mutex.lock();
+				
 				byte encoded[getEncodedLength(sizeof(state.rotationState.value))];
 				encode<4, sizeof(state.rotationState.value)>((byte*)&state.rotationState.value, encoded);
 				std::cout << "Raw: ";
@@ -71,6 +86,8 @@ Operations:
 				std::cout << "\nEnc: ";
 				lookupBytes(encoded, sizeof(encoded));
 				std::cout << '\n';
+				
+				state.rotationState.mutex.unlock();
 				continue;
 			}
 			if(op == '3')
@@ -104,12 +121,55 @@ Operations:
 				*/
 				continue;
 			}
+			if(op == 'c')
+			{
+				std::string hostname, port;
+				//int port;
+				
+				std::cout << "Hostname & port: ";
+				std::cin >> hostname >> port;
+				
+				if(!tcpConnection.resolveAndConnect( hostname, port ))
+				{
+					std::cout << "Failed to connect\n";
+				}
+				else
+				{
+					std::cout << "Connected successfully\n";
+				}
+				
+				continue;
+			}
+			if(op == 'r')
+			{
+				// c localhost 8081 r bajojajo2
+				std::string name;
+				std::cout << "Name: ";
+				std::cin >> name;
+				
+				data::RegisterAsController::RequestHeader request;
+				strcpy(request.name, name.data());
+				
+				tcpConnection.pushCallbackStack([=](CallbackResult::Ptr result){
+					if (result->isCritical()) {
+						std::cout << "Received Register As Controller: Critical error occured\n";
+					} else {
+						auto valueResult = dynamic_cast< ValueCallbackResult<data::IdType>* >(result.get());
+						std::cout << "Received Register As Controller Response With Message: " << (valueResult->value) << " Status: " << int(valueResult->status) << '\n';
+					}
+				});
+				tcpConnection.registerAsControllerRequest(name);
+				
+				continue;
+			}
 		}
 	}
 	catch(std::exception& e)
 	{
 		std::cout << "Exception in f1: " << e.what() << '\n';
 	}
+	
+	asioThread.join();
 }
 
 int main()

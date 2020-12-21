@@ -22,8 +22,8 @@ struct UpdateableStateComponent
 	{
 		mutex.lock();
 		std::memcpy(&value, newValueData, sizeof(T));
-		mutex.unlock();
 		updatedFlag.store(true, std::memory_order::memory_order_relaxed);
+		mutex.unlock();
 	}
 	
 	void postRequest(Device& device)

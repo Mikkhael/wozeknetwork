@@ -73,7 +73,7 @@ static_assert(sizeof(size_t) == 8);
 
 struct EchoRequest
 {
-	constexpr static IdType request_id = 1;
+	constexpr static char request_id = 1;
 	// char* - null terminated string of any length up to some MAX length
 };
 
@@ -94,6 +94,36 @@ namespace SegmentedFileTransfer
 	};
 };
 
+
+/// CONTROLLERCONTROLLER ///
+
+namespace RegisterAsController
+{
+	constexpr static char request_id = 0x50;
+	
+	struct RequestHeader {
+		StaticString<128> name;
+		
+	};
+	static_assert(sizeof(RequestHeader) == 128);
+	
+	struct ResponseHeader {
+		
+		enum ResultCode : char {
+			Accepted = 0,
+			InUse = 0,
+			Invalid = 0
+		};
+		
+		IdType id;
+		ResultCode resultCode;
+	};
+	static_assert(sizeof(ResponseHeader) == sizeof(ResponseHeader::ResultCode)*4 + sizeof(ResponseHeader::id));
+};
+
+
+
+/// OLD ////////////////////////////
 
 namespace RegisterNewHost
 {

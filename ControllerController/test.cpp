@@ -189,6 +189,61 @@ void timeEncodes()
 		lookupBytes(res, resSize);
 }
 
+void testEncodes2()
+{
+	
+	float t[] {1, 1, 1, 1};
+	byte data[sizeof(t)] {};
+	
+	byte edata[getEncodedLength(sizeof(data))]{};
+	byte ddata[sizeof(data)] {};
+	
+	t[0] = 0;
+	t[1] = 0;
+	t[2] = 0;
+	t[3] = 0;
+	memcpy(data, (char*)t, sizeof(t) );
+	
+	std::cout << "--- " << t[0] << "  " << t[1] << "  " << t[2] << "  " << t[3] << '\n';
+	lookupBytes(data, sizeof(data)); std::cout << '\n';
+	encode<4, sizeof(data)>(data, edata);
+	//encode(4, sizeof(data), data, edata);
+	decode(sizeof(data), edata, ddata);
+	lookupBytes(ddata, sizeof(ddata)); std::cout << '\n';
+	lookupBytes(edata, sizeof(edata)); std::cout << '\n';
+	
+	
+	for(int i=0; i<sizeof(data); i++)
+	{
+		data[i] = 255;
+	}
+	memcpy( (char*)t, data, sizeof(t) );	
+	
+	std::cout << "--- " << t[0] << "  " << t[1] << "  " << t[2] << "  " << t[3] << '\n';
+	lookupBytes(data, sizeof(data)); std::cout << '\n';
+	encode<4, sizeof(data)>(data, edata);
+	//encode(4, sizeof(data), data, edata);
+	decode(sizeof(data), edata, ddata);
+	lookupBytes(ddata, sizeof(ddata)); std::cout << '\n';
+	lookupBytes(edata, sizeof(edata)); std::cout << '\n';
+	
+	t[0] = 0;
+	t[1] = 0;
+	t[2] = 0;
+	t[3] = 0;
+	memcpy(data, (char*)t, sizeof(t) );
+	
+	std::cout << "--- " << t[0] << "  " << t[1] << "  " << t[2] << "  " << t[3] << '\n';
+	lookupBytes(data, sizeof(data)); std::cout << '\n';
+	encode<4, sizeof(data)>(data, edata);
+	//encode(4, sizeof(data), data, edata);
+	decode(sizeof(data), edata, ddata);
+	lookupBytes(ddata, sizeof(ddata)); std::cout << '\n';
+	lookupBytes(edata, sizeof(edata)); std::cout << '\n';
+	
+	
+}
+
 void tak()
 {
 	
@@ -243,9 +298,9 @@ void testDecode()
 int main()
 {
 	
-	testDecode();
+	//testEncodes2();
 	
-	std::cout << getEncodedLength(12);
+	timeEncodes();
 	
 }
 

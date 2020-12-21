@@ -18,6 +18,7 @@ public:
 			UnknownError,
 			TcpTimeout, TcpInvalidRequests, TcpForbidden,
 			TcpEchoTooLong,
+			TcpRegisterAsControllerInvalidName,
 			FileSystemError, TcpSegFileTransferError,
 			TcpUnexpectedConnectionClosed,
 			TcpConnectionBroken, TcpUnknownError, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)

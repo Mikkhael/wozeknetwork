@@ -1,5 +1,7 @@
 #pragma once
 
+/*
+
 #include "logging.hpp"
 #include "Datagrams.hpp"
 #include "DatabaseManager.hpp"
@@ -110,3 +112,5 @@ using UdpWozekStateServer = udp::GenericServer<WozekServerStateHandler, WozekSta
 
 
 }
+
+*/

@@ -72,8 +72,8 @@ int main(int argc, char** argv)
 	}
 	ipAuthorizer.init(ioContext);
 	
-	db::Database database;
-	db::databaseManager.setDatabase(database);
+	//db::Database database;
+	//db::databaseManager.setDatabase(database);
 	db::databaseManager.setContext(ioContext);
 	
 	if( !fileManager.setWorkingDirectory(dir) )
@@ -89,11 +89,13 @@ int main(int argc, char** argv)
 		std::cout << "TCP Server started on port " << port << '\n';
 	}
 	
+	/*
 	udp::UdpWozekStateServer udpStateServer(ioContext);
 	if(udpStateServer.start(port))
 	{
 		std::cout << "UDP State Server started on port " << port << '\n';
 	}
+	*/
 
 	std::vector<std::thread> threadPool;
 	threadPool.reserve(numberOfAdditionalThreads);

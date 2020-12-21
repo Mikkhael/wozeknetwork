@@ -10,13 +10,18 @@ namespace tcp
 	
 /// Basic ///
 
-void WozekSession::awaitRequest(bool silent)
+void WozekSession::awaitRequest()
 {
-	if(!silent)
-		log("Awaiting request");
-	
+	log("Awaiting request");
 	resetState();
-	
+	asyncReadObjects<char>(
+		&WozekSession::handleReceivedRequestId,
+		&WozekSession::errorDisconnect
+	);
+}
+void WozekSession::awaitRequestSilent()
+{
+	resetState();
 	asyncReadObjects<char>(
 		&WozekSession::handleReceivedRequestId,
 		&WozekSession::errorDisconnect
@@ -28,7 +33,7 @@ void WozekSession::handleReceivedRequestId(char id)
 {
 	if(id == data::HeartbeatCode) // heartbeat
 	{
-		awaitRequest(true);
+		awaitRequestSilent();
 		return;
 	}
 	
@@ -38,6 +43,11 @@ void WozekSession::handleReceivedRequestId(char id)
 		case data::EchoRequest::request_id:
 		{
 			receiveEchoRequest();
+			break;
+		}
+		case data::RegisterAsController::request_id:
+		{
+			receiveRegisterAsControllerRequest();
 			break;
 		}
 		/*
@@ -128,6 +138,54 @@ void WozekSession::sendEchoResponse()
 	);
 }
 
+/// Controller Controller ///
+
+void WozekSession::receiveRegisterAsControllerRequest()
+{
+	log("Receiving Register As Controller Request");
+	asyncReadObjects<data::RegisterAsController::RequestHeader>(
+		&WozekSession::handleRegisterAsControllerRequest,
+		&WozekSession::errorAbort
+	);
+}
+
+void WozekSession::handleRegisterAsControllerRequest(const data::RegisterAsController::RequestHeader& request)
+{
+	auto nameSize = strlen(request.name);
+	log("Received Register As Controller Request with name (", nameSize, ") : ", request.name);
+	
+	data::RegisterAsController::ResponseHeader response;
+	if(nameSize <= 2 || nameSize >= sizeof(request.name))
+	{
+		logError(Logger::Error::TcpRegisterAsControllerInvalidName, "Invalid name");
+		response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Invalid;
+		finalizeRegisterAsControllerRequest(response);
+		return;
+	}
+	else
+	{
+		log("Name Accepted");
+		response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Accepted;
+		
+		finalizeRegisterAsControllerRequest(response);
+		
+		// TODO update databases
+		
+		return;
+	}
+	
+}
+
+void WozekSession::finalizeRegisterAsControllerRequest(const data::RegisterAsController::ResponseHeader& response)
+{
+	log("Sending Register As Controller Response");
+	
+	asyncWriteObjects(
+		&WozekSession::awaitRequest,
+		&WozekSession::errorAbort,
+		response
+	);
+}
 
 
 

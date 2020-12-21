@@ -36,6 +36,15 @@
 					<Add option="-g" />
 				</Compiler>
 			</Target>
+			<Target title="TestRelease">
+				<Option output="bin/TestR/ControllerController" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/TestR/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+			</Target>
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
@@ -45,6 +54,8 @@
 			<Add library="Ws2_32" />
 			<Add library="wsock32" />
 		</Linker>
+		<Unit filename="ControllerSessionClient.cpp" />
+		<Unit filename="ControllerSessionClient.hpp" />
 		<Unit filename="Device.hpp" />
 		<Unit filename="Imported.hpp" />
 		<Unit filename="RS232.h" />
@@ -56,7 +67,9 @@
 		<Unit filename="seriallib.hpp" />
 		<Unit filename="test.cpp">
 			<Option target="Test" />
+			<Option target="TestRelease" />
 		</Unit>
+		<Unit filename="utils.hpp" />
 		<Extensions>
 			<code_completion />
 			<envvars />
