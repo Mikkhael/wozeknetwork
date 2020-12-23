@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <vector>
 #include "ControllerSessionClient.hpp"
+//#include "ControllerSessionUDP.hpp"
 
 #include "State.hpp"
 
@@ -20,17 +21,18 @@ void readAll(Device& device)
 	
 	while(true)
 	{
-		while(serial.available())
+		constexpr auto maxBufferSize = 425106752;
+		const auto available = serial.available();
+		while(available)
 		{
 			err = serial.readChar((char*)&buffer);
 			std::cout << "R: ";
 			lookupBytes(&buffer, 1);
+			
 			std::cout << " (" << err << ")\n";
 		}
 	}
 }
-
-
 
 void f1(State& state)
 {
@@ -38,6 +40,10 @@ void f1(State& state)
 	asio::executor_work_guard<decltype(ioContext.get_executor())> work{ioContext.get_executor()};
 	
 	tcp::ControllerSessionClient tcpConnection(ioContext);
+	//udp::ControllerUDPSender udpSender(ioContext);
+	//udp::ControllerUDPServer udpServer(ioContext);
+	
+	//udpServer.start(8088);
 	
 	std::thread asioThread( [&]{ ioContext.run(); } );
 	
@@ -58,6 +64,7 @@ Operations:
 	c - Connect to Server
 	r - Register As Controller Request
 	
+	q - Send Fetch State Request
 )";
 			
 			std::cin >> op;

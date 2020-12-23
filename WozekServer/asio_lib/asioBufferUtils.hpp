@@ -52,6 +52,7 @@ public:
 	virtual size_t loadBytesAt(const size_t offset, char* to, size_t length) = 0;
 	virtual void saveBytes(char* from, size_t length) = 0;
 	virtual size_t saveBytesAt(const size_t offset, char* from, size_t length) = 0;
+	virtual asio::mutable_buffer get() = 0;
 	virtual asio::mutable_buffer get(const size_t length) = 0;
 	virtual asio::mutable_buffer getAt(const size_t offset, const size_t length) = 0;
 	
@@ -137,6 +138,10 @@ public:
 		return offset + length;
 	}
 	
+	asio::mutable_buffer get()
+	{
+		return asio::buffer(buffer);
+	}
 	asio::mutable_buffer get(const size_t length)
 	{
 		return asio::buffer(buffer, length);
