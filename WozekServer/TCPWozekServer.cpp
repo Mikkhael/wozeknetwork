@@ -154,10 +154,10 @@ void WozekSession::handleRegisterAsControllerRequest(const data::RegisterAsContr
 	auto nameSize = strlen(request.name);
 	log("Received Register As Controller Request with name (", nameSize, ") : ", request.name);
 	
-	data::RegisterAsController::ResponseHeader response;
 	if(nameSize <= 2 || nameSize >= sizeof(request.name))
 	{
 		logError(Logger::Error::TcpRegisterAsControllerInvalidName, "Invalid name");
+		data::RegisterAsController::ResponseHeader response;
 		response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Invalid;
 		finalizeRegisterAsControllerRequest(response);
 		return;
@@ -165,11 +165,30 @@ void WozekSession::handleRegisterAsControllerRequest(const data::RegisterAsContr
 	else
 	{
 		log("Name Accepted");
-		response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Accepted;
 		
-		finalizeRegisterAsControllerRequest(response);
-		
-		// TODO update databases
+		auto& table = db::databaseManager.getDatabase().controllerTable;
+		table.postOnStrand([this, &table, me = sharedFromThis()]{
+			
+			data::RegisterAsController::ResponseHeader response;
+			response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Accepted;
+			
+			auto result = table.createNewRecord();
+			response.id = result.second;
+							
+			log("New record id: ", response.id);
+			
+			
+			result.first->endpoint = asioudp::endpoint(remoteEndpoint.address(), 0);
+			
+			// TESTY
+			result.first->rotation.X = 0.4;
+			result.first->rotation.Y = 0;
+			result.first->rotation.Z = 1;
+			// KONIEC TESTÓW
+			
+			
+			finalizeRegisterAsControllerRequest(response);
+		});
 		
 		return;
 	}

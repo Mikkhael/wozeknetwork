@@ -56,6 +56,8 @@
 		</Linker>
 		<Unit filename="ControllerSessionClient.cpp" />
 		<Unit filename="ControllerSessionClient.hpp" />
+		<Unit filename="ControllerSessionUDP.cpp" />
+		<Unit filename="ControllerSessionUDP.hpp" />
 		<Unit filename="Device.hpp" />
 		<Unit filename="Imported.hpp" />
 		<Unit filename="RS232.h" />

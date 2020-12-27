@@ -61,10 +61,10 @@ public:
 
 
     // Constructor of the class
-    serialib    ();
+    inline serialib    ();
 
     // Destructor
-    ~serialib   ();
+    inline ~serialib   ();
 
 
 
@@ -73,10 +73,10 @@ public:
 
 
     // Open a device
-    char    openDevice (const char *Device,const unsigned int Bauds);
+    inline char    openDevice (const char *Device,const unsigned int Bauds);
 
     // Close the current device
-    void    closeDevice();
+    inline void    closeDevice();
 
 
 
@@ -86,10 +86,10 @@ public:
 
 
     // Write a char
-    char    writeChar   (char);
+    inline char    writeChar   (char);
 
     // Read a char (with timeout)
-    char    readChar    (char *pByte,const unsigned int timeOut_ms=0);
+    inline char    readChar    (char *pByte,const unsigned int timeOut_ms=0);
 
 
 
@@ -99,10 +99,10 @@ public:
 
 
     // Write a string
-    char    writeString (const char *String);
+    inline char    writeString (const char *String);
 
     // Read a string (with timeout)
-    int     readString  (   char *receivedString,
+    inline int     readString  (   char *receivedString,
                             char finalChar,
                             unsigned int maxNbBytes,
                             const unsigned int timeOut_ms=0);
@@ -114,10 +114,10 @@ public:
 
 
     // Write an array of bytes
-    char    writeBytes  (const void *Buffer, const unsigned int NbBytes);
+    inline char    writeBytes  (const void *Buffer, const unsigned int NbBytes);
 
     // Read an array of byte (with timeout)
-    int     readBytes   (void *buffer,unsigned int maxNbBytes,const unsigned int timeOut_ms=0, unsigned int sleepDuration_us=100);
+    inline int     readBytes   (void *buffer,unsigned int maxNbBytes,const unsigned int timeOut_ms=0, unsigned int sleepDuration_us=100);
 
 
 
@@ -127,10 +127,10 @@ public:
 
 
     // Empty the received buffer
-    char    flushReceiver();
+    inline char    flushReceiver();
 
     // Return the number of bytes in the received buffer
-    int     available();
+    inline int     available();
 
 
 
@@ -140,37 +140,37 @@ public:
 
 
     // Set CTR status (Data Terminal Ready, pin 4)
-    bool    DTR(bool status);
-    bool    setDTR();
-    bool    clearDTR();
+    inline bool    DTR(bool status);
+    inline bool    setDTR();
+    inline bool    clearDTR();
 
     // Set RTS status (Request To Send, pin 7)
-    bool    RTS(bool status);
-    bool    setRTS();
-    bool    clearRTS();
+    inline bool    RTS(bool status);
+    inline bool    setRTS();
+    inline bool    clearRTS();
 
     // Get RI status (Ring Indicator, pin 9)
-    bool    isRI();
+    inline bool    isRI();
 
     // Get DCD status (Data Carrier Detect, pin 1)
-    bool    isDCD();
+    inline bool    isDCD();
 
     // Get CTS status (Clear To Send, pin 8)
-    bool    isCTS();
+    inline bool    isCTS();
 
     // Get DSR status (Data Set Ready, pin 9)
-    bool    isDSR();
+    inline bool    isDSR();
 
     // Get RTS status (Request To Send, pin 7)
-    bool    isRTS();
+    inline bool    isRTS();
 
     // Get CTR status (Data Terminal Ready, pin 4)
-    bool    isDTR();
+    inline bool    isDTR();
 
 
 private:
     // Read a string (no timeout)
-    int             readStringNoTimeOut  (char *String,char FinalChar,unsigned int MaxNbBytes);
+    inline int             readStringNoTimeOut  (char *String,char FinalChar,unsigned int MaxNbBytes);
 
     // Current DTR and RTS state (can't be read on WIndows)
     bool            currentStateRTS;
@@ -203,13 +203,13 @@ class timeOut
 public:
 
     // Constructor
-    timeOut();
+    inline timeOut();
 
     // Init the timer
-    void                initTimer();
+    inline void                initTimer();
 
     // Return the elapsed time since initialization
-    unsigned long int   elapsedTime_ms();
+    inline unsigned long int   elapsedTime_ms();
 
 private:
     // Used to store the previous time (for computing timeout)
@@ -1172,8 +1172,3 @@ unsigned long int timeOut::elapsedTime_ms()
     // Return the elapsed time in milliseconds
     return sec*1000+usec/1000;
 }
-
-
-
-
-

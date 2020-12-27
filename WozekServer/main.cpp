@@ -1,6 +1,7 @@
 #ifndef TESTRUN
 
 #include "Everything.hpp"
+#include "UDPWozekServer.hpp"
 
 
 int main(int argc, char** argv)
@@ -89,13 +90,13 @@ int main(int argc, char** argv)
 		std::cout << "TCP Server started on port " << port << '\n';
 	}
 	
-	/*
-	udp::UdpWozekStateServer udpStateServer(ioContext);
-	if(udpStateServer.start(port))
+	
+	udp::WozekUDPServer wozekUdpServer(ioContext);
+	if(wozekUdpServer.start(port))
 	{
-		std::cout << "UDP State Server started on port " << port << '\n';
+		std::cout << "UDP Server started on port " << port << '\n';
 	}
-	*/
+	
 
 	std::vector<std::thread> threadPool;
 	threadPool.reserve(numberOfAdditionalThreads);

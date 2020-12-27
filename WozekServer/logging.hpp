@@ -21,7 +21,10 @@ public:
 			TcpRegisterAsControllerInvalidName,
 			FileSystemError, TcpSegFileTransferError,
 			TcpUnexpectedConnectionClosed,
-			TcpConnectionBroken, TcpUnknownError, UdpUnknownCode, UdpInvalidRequest, UdpUnknownError)
+			TcpConnectionBroken, TcpUnknownError,
+			UdpConnectionError, UdpResolutionError, UdpTransmissionError,
+			UdpUnknownCode, UdpInvalidRequest,
+			UdpUnknownError)
 	
 	SMARTENUM( Log, 
 			TcpActiveConnections, TcpTotalConnections)

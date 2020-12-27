@@ -19,7 +19,7 @@ int main()
 	commander.start();
 	
 	
-	//std::thread t([&]{ioContext.run(); std::cout << "Additional thread ended\n";});
+	std::thread t([&]{ioContext.run(); std::cout << "Additional thread ended\n";});
 	try
 	{
 		ioContext.run();

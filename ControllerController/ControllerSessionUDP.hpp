@@ -2,6 +2,10 @@
 
 #include "Imported.hpp"
 
+
+
+class State;
+
 namespace udp
 {
 
@@ -10,42 +14,77 @@ class ControllerUDPSender : public BasicHandler<ControllerUDPSender, ArrayBuffer
 {
 protected:
 	
-	virtual void handle_impl(const size_t bytesTransfered){ assert(false);};
+	virtual void connectionErrorHandler_impl(const Error& err)
+	{
+		std::cout << "Error while connecting to remote endpoint: " << err << '\n';
+	}
+	virtual void resolutionErrorHandler_impl(const Error& err)
+	{
+		std::cout << "Error while resolving endpoint address: " << err << '\n';
+	}
 	
+	virtual void handle_impl(){ assert(false);};
+	
+	constexpr static auto BufferSize = 1 << 10;
 	
 public:
 	
-	ControllerUDPSender(asio::io_context& ioContext)
-		: BasicHandler(ioContext)
+	ControllerUDPSender(asio::io_context& ioContext, Socket& socket)
+		: BasicHandler(ioContext, socket)
 	{
 	}
 	
+	void sendEchoMessage(const std::string& message);
+	void sendFetchStateRequest(const data::IdType id);
 	
+	void errorCritical(const Error& err)
+	{
+		std::cout << "Error: " << err << '\n';
+		returnCallbackCriticalError();
+	}
 };
-
-
-
 
 class ControllerUDPReceiver : public BasicHandler<ControllerUDPReceiver,ArrayBuffer< 512 >, false>
 {
 protected:
 	
-	virtual void handle_impl(const size_t bytesTransfered)
+	constexpr static auto BufferSize = 512;
+	
+	
+	virtual void connectionErrorHandler_impl(const Error& err)
 	{
-		std::cout << "Received " << bytesTransfered << " bytes from " << remoteEndpoint;
+		std::cout << "Error while connecting to remote endpoint: " << err << '\n';
 	}
+	virtual void resolutionErrorHandler_impl(const Error& err)
+	{
+		std::cout << "Error while resolving endpoint address: " << err << '\n';
+	}
+	
+	virtual void handle_impl()
+	{		
+		std::cout << "UDP: Received " << bytesTransfered << " bytes from " << remoteEndpoint << '\n';
+		
+		handleDatagram();
+	}
+	
+	void handleDatagram();
+	
+	static State* associatedStatePtr;
 	
 public:
 	
-	ControllerUDPReceiver(asio::io_context& ioContext)
-		: BasicHandler(ioContext)
+	static void setAssociatedState(State* statePtr)
+	{
+		associatedStatePtr = statePtr;
+	}
+	
+	ControllerUDPReceiver(asio::io_context& ioContext, Socket& socket)
+		: BasicHandler(ioContext, socket)
 	{
 	}
 	
-
-	
-	
-	
+	void handleEchoResponse();
+	void handleFetchStateResponse();
 };
 
 
@@ -55,6 +94,11 @@ protected:
 	virtual bool connectionErrorHandler_impl(const Error& err)
 	{
 		std::cout << "Error while receiving UDP request: " << err << '\n';
+		return true;
+	}
+	virtual bool bindingErrorHandler_impl(const Error& err)
+	{
+		std::cout << "Error while binding UDP socket: " << err << '\n';
 		return true;
 	}
 	

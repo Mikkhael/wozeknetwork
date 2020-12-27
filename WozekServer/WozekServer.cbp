@@ -56,6 +56,8 @@
 		<Unit filename="Everything.hpp" />
 		<Unit filename="TCPWozekServer.cpp" />
 		<Unit filename="TCPWozekServer.hpp" />
+		<Unit filename="UDPWozekServer.cpp" />
+		<Unit filename="UDPWozekServer.hpp" />
 		<Unit filename="World.hpp" />
 		<Unit filename="asio_lib.hpp" />
 		<Unit filename="asio_lib/TCP.hpp" />

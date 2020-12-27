@@ -8,7 +8,7 @@
 using byte = unsigned char;
 
 
-constexpr void lookupBytes(const byte* buffor, const int length)
+inline constexpr void lookupBytes(const byte* buffor, const int length)
 {
 	for(int i=0; i<length; i++)
 	{
@@ -18,7 +18,7 @@ constexpr void lookupBytes(const byte* buffor, const int length)
 	}
 }
 
-constexpr void lookupBits(const byte* data, const int length)
+inline constexpr void lookupBits(const byte* data, const int length)
 {
 	for(int i=0; i<length; i++)
 	{
@@ -26,7 +26,7 @@ constexpr void lookupBits(const byte* data, const int length)
 	}
 }
 
-const char *comports[33]   =       {"", "\\\\.\\COM1",  "\\\\.\\COM2",  "\\\\.\\COM3",  "\\\\.\\COM4",
+inline const char *comports[33]   =       {"", "\\\\.\\COM1",  "\\\\.\\COM2",  "\\\\.\\COM3",  "\\\\.\\COM4",
 										"\\\\.\\COM5",  "\\\\.\\COM6",  "\\\\.\\COM7",  "\\\\.\\COM8",
 										"\\\\.\\COM9",  "\\\\.\\COM10", "\\\\.\\COM11", "\\\\.\\COM12",
 										"\\\\.\\COM13", "\\\\.\\COM14", "\\\\.\\COM15", "\\\\.\\COM16",
@@ -36,12 +36,12 @@ const char *comports[33]   =       {"", "\\\\.\\COM1",  "\\\\.\\COM2",  "\\\\.\\
 										"\\\\.\\COM29", "\\\\.\\COM30", "\\\\.\\COM31", "\\\\.\\COM32"
 };
 
-const char* getPortName(const int portNumber) 
+inline const char* getPortName(const int portNumber) 
 { 
 	return comports[portNumber];
 }
 
-constexpr int getEncodedLength(const int dataLength, const int opcodeSize = 3) { return (8*dataLength + opcodeSize - 1)/7 + 1; }
+inline constexpr int getEncodedLength(const int dataLength, const int opcodeSize = 3) { return (8*dataLength + opcodeSize - 1)/7 + 1; }
 
 template <int dataLength, int byteIndex, int currentOffset> 
 void encodeStep(const byte* data, byte* resBuffer)
@@ -69,7 +69,7 @@ void encode(const byte* data, byte* resBuffer)
 	encodeStep< dataLength, 0, 7 - opcodeSize >(data, resBuffer);
 }
 
-void encode(byte opcode, const int dataLength, const byte* data, byte* resBuffer, int opcodeSize = 3)
+inline void encode(byte opcode, const int dataLength, const byte* data, byte* resBuffer, int opcodeSize = 3)
 {
 	resBuffer[0] = (opcode << (7 - opcodeSize) ) | 0x80;
 	int currentOffset = 7 - opcodeSize;

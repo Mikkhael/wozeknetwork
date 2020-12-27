@@ -16,7 +16,7 @@ struct ControllerRecord
 	asioudp::endpoint endpoint;
 	struct Rotation
 	{
-		float X, Y, Z;
+		data::RotationType X, Y, Z;
 	} rotation;
 	
 };

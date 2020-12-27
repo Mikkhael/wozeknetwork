@@ -19,14 +19,22 @@ public:
 	
 	
 	tcp::WozekSessionClient tcpConnection;
+	udp::WozekUDPServer udpServer;
+	udp::WozekUDPSender udpSender;
 	//udp::Connection udpConnection;
 	
 	Commander(asio::io_context& ioContext_)
-		: ioContext(ioContext_), tcpConnection(ioContext_) //, udpConnection(ioContext_)
+		: ioContext(ioContext_), tcpConnection(ioContext_), udpServer(ioContext_), udpSender(ioContext_, udpServer.getSocket()) //, udpConnection(ioContext_)
 	{
 		MenuMap.insert({ "1", {"Connect to TCP Server", &Commander::connectToServer} });
 		MenuMap.insert({ "2", {"Send TCP Heartbeat", &Commander::sendTcpHeartbeat} });
 		MenuMap.insert({ "3", {"Send TCP Echo Message", &Commander::sendTcpEchoMessage} });
+		MenuMap.insert({ "4", {"Set UDP Endpoint", &Commander::setUdpEndpoint} });
+		MenuMap.insert({ "5", {"Send UDP Echo Message", &Commander::sendUdpEchoMessage} });
+		MenuMap.insert({ "6", {"Send UDP State Update", &Commander::sendUdpStateUpdate} });
+		
+		udpServer.start(0);
+		udpSender.connect(asioudp::endpoint(asio::ip::make_address_v4("127.0.0.1"), 8081));
 	}
 	
 	void start()
@@ -95,7 +103,7 @@ public:
 		std::cin >> message;
 		tcpConnection.pushCallbackStack([=](CallbackResult::Ptr result){
 			if (result->isCritical()) {
-				std::cout << "Critilac error occured\n";
+				std::cout << "Critical error occured\n";
 			} else {
 				auto valueResult = dynamic_cast< ValueCallbackResult<std::string>* >(result.get());
 				std::cout << "Received Echo response with message: " << valueResult->value << '\n';
@@ -103,6 +111,71 @@ public:
 			enterMenuAsync();
 		});
 		tcpConnection.performEchoRequest(message);
+	}
+	void setUdpEndpoint()
+	{
+		std::cout << "UDP Address: ";
+		std::string address;
+		std::cin >> address;
+		std::cout << "UDP Port: ";
+		short port;
+		std::cin >> port;
+		
+		asioudp::endpoint endpoint(asio::ip::make_address_v4(address), port);
+		if(!udpSender.connect(endpoint))
+		{
+			std::cout << "Setting the endpoint failed. (" << endpoint << ")\n";
+		}
+		else
+		{
+			std::cout << "Setting the endpoint succeded. (" << endpoint << ")\n";
+		}
+		
+		enterMenuAsync();
+	}
+	void sendUdpEchoMessage()
+	{
+		std::cout << "Send UDP Echo Message\nEnter Message:";
+		std::string message;
+		std::cin >> message;
+		udpSender.pushCallbackStack([=](CallbackResult::Ptr result){
+			if (result->isCritical()) {
+				std::cout << "Critical error occured\n";
+			} else {
+				std::cout << "UDP Echo Request Callback Status: " << int(result->status) << '\n';
+			}
+			enterMenuAsync();
+		});
+		udpSender.sendEchoMessage(message);
+	}
+	void sendUdpStateUpdate()
+	{
+		
+		int temp;
+		data::RotationType rotation[3];
+		data::IdType id;
+		
+		std::cout << "New Rotation 1:";
+		std::cin >> temp;
+		rotation[0] = temp;
+		std::cout << "New Rotation 2:";
+		std::cin >> temp;
+		rotation[1] = temp;
+		std::cout << "New Rotation 3:";
+		std::cin >> temp;
+		rotation[2] = temp;
+		std::cout << "Controller Id: ";
+		std::cin >> id;
+		
+		udpSender.pushCallbackStack([=](CallbackResult::Ptr result){
+			if (result->isCritical()) {
+				std::cout << "Critical error occured\n";
+			} else {
+				std::cout << "UDP Echo Request Callback Status: " << int(result->status) << '\n';
+			}
+			enterMenuAsync();
+		});
+		udpSender.sendUdpStateUpdate(rotation, id);
 	}
 };
 

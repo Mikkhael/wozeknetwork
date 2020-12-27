@@ -54,9 +54,9 @@ struct State
 	
 	struct RotationState
 	{
-		float X = 0, Y = 0, Z = 0;
+		data::RotationType X = 0, Y = 0, Z = 0;
 	};
-	static_assert(sizeof(RotationState) == 3 * 4 && sizeof(float) == 4);
+	static_assert(sizeof(RotationState) == 3 * 1 && sizeof(data::RotationType) == 1);
 	
 	struct Trzy
 	{
@@ -79,7 +79,7 @@ void log(const Args& ...args)
 }
 
 
-void sustainConnectionAndUpdate(Device& device, State& state)
+inline void sustainConnectionAndUpdate(Device& device, State& state)
 {
 	constexpr static auto ReconnectionInterval   = std::chrono::milliseconds(500);
 	constexpr static auto ReconnectionRelaxation = std::chrono::milliseconds(1000);

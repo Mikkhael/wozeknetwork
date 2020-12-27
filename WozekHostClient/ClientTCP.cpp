@@ -90,7 +90,7 @@ void WozekSessionClient::sendSegmentHeader()
 	
 	if(state.fileSegmentLengthLeft == 0)
 	{
-		state.fileStream.file.read(state.bigBuffer.data(), state.bigBuffer.size());
+		state.fileStream.value().stream.read(state.bigBuffer.data(), state.bigBuffer.size());
 		state.fileSegmentLengthLeft = DefaultSegmentsInBuffer;
 	}
 	
@@ -101,12 +101,13 @@ void WozekSessionClient::sendSegmentHeader()
 	}
 	
 	data::SegmentedFileTransfer::Header header = {}; // TODO
-	
+	 /*
 	asyncWriteObjects(
 		&WozekSessionClient::handleSegmentFileHeaderResponseCode,
 		&WozekSessionClient::errorCritical,
 		header
 	);
+	*/
 	
 	// TODO ALL
 	

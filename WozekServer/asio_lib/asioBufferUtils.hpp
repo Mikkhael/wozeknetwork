@@ -50,12 +50,13 @@ protected:
 public:
 	virtual void loadBytes(char* to, size_t length) = 0;
 	virtual size_t loadBytesAt(const size_t offset, char* to, size_t length) = 0;
-	virtual void saveBytes(char* from, size_t length) = 0;
-	virtual size_t saveBytesAt(const size_t offset, char* from, size_t length) = 0;
+	virtual void saveBytes(const char* from, size_t length) = 0;
+	virtual size_t saveBytesAt(const size_t offset, const char* from, size_t length) = 0;
 	virtual asio::mutable_buffer get() = 0;
 	virtual asio::mutable_buffer get(const size_t length) = 0;
 	virtual asio::mutable_buffer getAt(const size_t offset, const size_t length) = 0;
 	
+	auto getTotalBufferSize() { return BufferSize; }
 	
 	template<typename T>
 	void loadObject(T& object)
@@ -126,12 +127,12 @@ public:
 		return offset + length;
 	}
 	
-	void saveBytes(char* from, size_t length)
+	void saveBytes(const char* from, size_t length)
 	{
 		assert( length <= BufferSize );
 		std::memcpy(buffer.data(), from, length);
 	}
-	size_t saveBytesAt(const size_t offset, char* from, size_t length)
+	size_t saveBytesAt(const size_t offset, const char* from, size_t length)
 	{
 		assert(length + offset <= BufferSize);
 		std::memcpy(buffer.data() + offset, from, length);

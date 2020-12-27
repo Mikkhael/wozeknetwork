@@ -30,6 +30,7 @@ protected:
 	Endpoint localEndpoint;
 	
 	virtual bool connectionErrorHandler_impl(const Error& err) = 0;
+	virtual bool bindingErrorHandler_impl(const Error& err) = 0;
 	//virtual bool authorisationChecker_impl(const asio::ip::tcp::endpoint remote) = 0;
 	
 public:
@@ -46,11 +47,36 @@ public:
 			return false;
 		}
 		
-		localEndpoint = Endpoint(asioudp::v4(), port);
-		receiveSocket.bind(localEndpoint);
+		Error err;
+		
+		receiveSocket.open(asioudp::v4(), err);
+		if(err)
+		{
+			if(bindingErrorHandler_impl(err))
+			{
+				return false;
+			}
+		}
+		
+		receiveSocket.bind(asioudp::endpoint(asioudp::v4(), port), err);
+		
+		if(err)
+		{
+			if(bindingErrorHandler_impl(err))
+			{
+				return false;
+			}
+		}
+		
+		std::cout << "SADASD: " << receiveSocket.local_endpoint(err) << '\n';
 		
 		awaitNewDatagram();
 		return true;
+	}
+	
+	auto& getSocket()
+	{
+		return receiveSocket;
 	}
 	
 private:
@@ -58,7 +84,7 @@ private:
 	void awaitNewDatagram()
 	{
 		//logger.output("Awaiting connection on endpoint: ", acceptor.local_endpoint());
-		auto newHandler = std::make_shared<Handler>(ioContext);
+		auto newHandler = std::make_shared<Handler>(ioContext, receiveSocket);
 		receiveSocket.async_receive_from(newHandler->getBuffer(), newHandler->getEndpoint(), [this, newHandler](const Error& err, const size_t bytesTransfered){
 			if(err)
 			{
@@ -89,15 +115,17 @@ protected:
 	
 	asioudp::resolver resolver;
 	
-	Socket socket;
+	Socket& socket;
 	Endpoint remoteEndpoint;
 	
 	BufferImpl buffer;
-	
+	size_t bytesTransfered;
 	
 	CallbackStack callbackStack;
 	
-	virtual void handle_impl(const size_t bytesTransfered) = 0;
+	virtual void connectionErrorHandler_impl(const Error& err) = 0;
+	virtual void resolutionErrorHandler_impl(const Error& err) = 0;
+	virtual void handle_impl() = 0;
 	
 /// Writes ///
 	
@@ -132,8 +160,8 @@ protected:
 	}
 public:
 	
-	BasicHandler(asio::io_context& ioContext_)
-		: ioContext(ioContext_), resolver(ioContext_), socket(ioContext_)
+	BasicHandler(asio::io_context& ioContext_, Socket& socket_)
+		: ioContext(ioContext_), resolver(ioContext_), socket(socket_)
 	{
 		pushCallbackStack( [=](CallbackResult::Ptr result){
 			return;
@@ -180,8 +208,9 @@ public:
 	void returnCallbackCriticalError() { returnCallbackDefault(CallbackResult::Status::CriticalError); }
 	
 	void handle(const size_t bytesTransfered) {
-		asio::post(ioContext, [this, me = this->sharedFromThis(), bytesTransfered]{ 
-			handle_impl(bytesTransfered);
+		this->bytesTransfered = bytesTransfered;
+		asio::post(ioContext, [this, me = this->sharedFromThis()]{ 
+			handle_impl();
 		});
 	};
 	
@@ -193,10 +222,30 @@ public:
 	
 	bool resolveAndConnect(const std::string_view hostname, const std::string_view port)
 	{
+		Error err;
 		auto endpoints = resolve(hostname, port);		
-		// TODO
+		if(std::size(endpoints) <= 0)
+		{
+			resolutionErrorHandler_impl(err);
+			return false;
+		}
 		
-		return std::size(endpoints) > 0;
+		asio::connect(socket, endpoints, err);
+		if(err)
+		{
+			connectionErrorHandler_impl(err);
+			return false;
+		}
+		
+		remoteEndpoint = socket.remote_endpoint(err);
+		return true;
+	}
+	
+	bool connect(const Endpoint& endpoint)
+	{
+		Error err;
+		remoteEndpoint = endpoint;
+		return true;
 	}
 };
 

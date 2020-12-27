@@ -47,7 +47,8 @@ public:
 	{
 		std::pair< RecordT* , IdT > res;
 		res.second = getNextIndex();
-		res.first = records[res.second].reset(new RecordT).get();
+		records[res.second].reset(new RecordT);
+		res.first = records[res.second].get();
 		return res;
 	}
 	

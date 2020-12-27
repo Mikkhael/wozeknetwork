@@ -31,6 +31,9 @@ using Vector3f = Vector3<float>;
 
 
 
+using RotationType = uint8_t;
+
+
 
 /// Data Structures ///
 
@@ -73,8 +76,40 @@ static_assert(sizeof(size_t) == 8);
 
 struct EchoRequest
 {
-	constexpr static char request_id = 1;
+	constexpr static char request_id = 0x11;
+	constexpr static char response_id = 0x12;
 	// char* - null terminated string of any length up to some MAX length
+};
+
+struct UdpFetchState
+{
+	constexpr static char request_id = 0x60;
+	constexpr static char response_id = 0x61;
+	
+	struct Request
+	{
+		IdType id;
+	};
+	
+	struct Response
+	{
+		RotationType values[3];
+	};
+	
+	static_assert(sizeof(Response) == 3 * sizeof(RotationType));
+};
+
+struct UdpUpdateState
+{
+	constexpr static char request_id = 0x70;
+	
+	struct Request_Pogladowy
+	{
+		IdType id;
+		RotationType rotation[3];
+	};
+	
+	//static_assert(sizeof(Request) == sizeof(Request::rotation) + sizeof(Request::id) + 1);
 };
 
 namespace SegmentedFileTransfer
