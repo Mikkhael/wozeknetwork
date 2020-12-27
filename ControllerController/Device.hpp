@@ -13,8 +13,8 @@ inline constexpr void lookupBytes(const byte* buffor, const int length)
 	for(int i=0; i<length; i++)
 	{
 		if(buffor[i] < 16)
-			std::cout << '0';
-		std::cout << std::hex << static_cast<unsigned int>(buffor[i]) << ' ';
+			std::clog << '0';
+		std::clog << std::hex << static_cast<unsigned int>(buffor[i]) << ' ';
 	}
 }
 
@@ -22,7 +22,7 @@ inline constexpr void lookupBits(const byte* data, const int length)
 {
 	for(int i=0; i<length; i++)
 	{
-		std::cout << std::bitset<8>(data[i]) << ' ';
+		std::clog << std::bitset<8>(data[i]) << ' ';
 	}
 }
 
@@ -66,12 +66,18 @@ void encode(const byte* data, byte* resBuffer)
 {
 	constexpr byte shiftedOpcode = (opcode << (7 - opcodeSize) ) | 0x80;
 	resBuffer[0] = shiftedOpcode;
-	encodeStep< dataLength, 0, 7 - opcodeSize >(data, resBuffer);
+	if constexpr (dataLength > 0) {
+		encodeStep< dataLength, 0, 7 - opcodeSize >(data, resBuffer);
+	}
 }
 
-inline void encode(byte opcode, const int dataLength, const byte* data, byte* resBuffer, int opcodeSize = 3)
+template<int opcodeSize = 3>
+inline void encode(byte opcode, const int dataLength, const byte* data, byte* resBuffer)
 {
 	resBuffer[0] = (opcode << (7 - opcodeSize) ) | 0x80;
+	if(dataLength <= 0) {
+		return;
+	}
 	int currentOffset = 7 - opcodeSize;
 	int resIndex = 0;
 	int byteIndex = 0;
@@ -137,6 +143,10 @@ public:
 		this->portName = getPortName(port);
 		return true;
 	}
+	void setBdRate(const int bdrate_)
+	{
+		bdrate = bdrate_;
+	}
 	
 	bool connect()
 	{
@@ -153,7 +163,7 @@ public:
 		serialPort.flushReceiver();
 	}
 	
-	constexpr static int DefaultTimeout  = 15;
+	constexpr static int DefaultTimeout  = 30;
 	static constexpr int ReadBufferSize  = 512;
 	static constexpr int WriteBufferSize = 512;
 	byte readBuffer[ReadBufferSize] {};
@@ -173,15 +183,38 @@ public:
 	}
 	
 	template <int opcode, int length>
-	bool postEncodedRequestAndAwaitResponse(const byte* data)
+	int postEncodedRequestAndAwaitResponse(const byte* data, const int expectedResponseLength = ReadBufferSize)
 	{
 		encode<opcode, length>(data, writeBuffer);
 		flush();
-		auto res = serialPort.writeBytes(writeBuffer, length);
+		int res = serialPort.writeBytes(writeBuffer, getEncodedLength(length));
 		if(res < 0)
 		{
-			return false;
+			return -1;
 		}
-		
+		res = serialPort.readBytes(readBuffer, expectedResponseLength, DefaultTimeout);
+		if(res < 0)
+		{
+			return -2;
+		}
+		return res;
+	}
+	
+	int postEncodedRequestAndAwaitResponse(const int opcode, const byte* data, const int length, const int expectedResponseLength = ReadBufferSize)
+	{
+		encode(opcode, length, data, writeBuffer);
+		flush();
+		lookupBytes(writeBuffer, getEncodedLength(length));
+		int res = serialPort.writeBytes(writeBuffer, getEncodedLength(length));
+		if(res < 0)
+		{
+			return -1;
+		}
+		res = serialPort.readBytes(readBuffer, expectedResponseLength, DefaultTimeout);
+		if(res < 0)
+		{
+			return -2;
+		}
+		return res;
 	}
 };

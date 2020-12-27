@@ -6,7 +6,6 @@
 
 int main(int argc, char** argv)
 {
-	
 	#ifdef RELEASE
 	
 	if(argc < 4)
@@ -22,7 +21,7 @@ int main(int argc, char** argv)
 	#else
 	
 	short port = 8081;
-	short threads = 1;
+	short threads = 5a;
 	std::string dir = "ServerFiles";
 	
 	#endif // RELEASE
@@ -35,68 +34,75 @@ int main(int argc, char** argv)
 	const fs::path logsPath = fs::path(dir) / "logs";
 	const fs::path configPath = fs::path(dir) / "config";
 	
-	if(!fs::exists(logsPath))
-	{
-		if(!fs::create_directory(logsPath))
-		{
-			std::cout << "Cannot create directory for logs\n";
-			return 0;
-		}
-	}
-	
-	if(!fs::exists(configPath))
-	{
-		if(!fs::create_directory(configPath))
-		{
-			std::cout << "Cannot create directory for config\n";
-			return 0;
-		}
-	}
-	
-	logger.setStrand(ioContext);
-	if(!logger.init(logsPath / "output.txt", logsPath / "error.txt", logsPath / "log.txt", std::chrono::seconds(30)))
-	{
-		std::cout << "Cannot initialize logger\n";
-		return 0;
-	}
-	
-	if(!logger.isErrorFileOpen() || !logger.isLogFileOpen() || !logger.isOutputFileOpen())
-	{
-		std::cout << "Cannot create/open files required for logging\n";
-		return 0;
-	}
-	
-	if(!config.init(configPath / "allowedips4.txt", std::chrono::seconds(3600)))
-	{
-		std::cout << "Cannot inicialize config\n";
-		return 0;
-	}
-	ipAuthorizer.init(ioContext);
-	
-	//db::Database database;
-	//db::databaseManager.setDatabase(database);
-	db::databaseManager.setContext(ioContext);
-	
-	if( !fileManager.setWorkingDirectory(dir) )
-	{
-		std::cout << "Working directory of \"" << dir << "\" (" << fs::absolute(fs::path(dir)) << ") dosent exist\n";
-		return 0;
-	}
-	fileManager.setContext(ioContext);
-	
 	tcp::WozekServer server(ioContext);
-	if(server.start(port))
-	{
-		std::cout << "TCP Server started on port " << port << '\n';
-	}
-	
-	
 	udp::WozekUDPServer wozekUdpServer(ioContext);
-	if(wozekUdpServer.start(port))
-	{
-		std::cout << "UDP Server started on port " << port << '\n';
-	}
 	
+	try
+	{
+		if(!fs::exists(logsPath))
+		{
+			if(!fs::create_directory(logsPath))
+			{
+				std::cout << "Cannot create directory for logs\n";
+				return 0;
+			}
+		}
+		
+		if(!fs::exists(configPath))
+		{
+			if(!fs::create_directory(configPath))
+			{
+				std::cout << "Cannot create directory for config\n";
+				return 0;
+			}
+		}
+		
+		logger.setStrand(ioContext);
+		if(!logger.init(logsPath / "output.txt", logsPath / "error.txt", logsPath / "log.txt", std::chrono::seconds(30)))
+		{
+			std::cout << "Cannot initialize logger\n";
+			return 0;
+		}
+		
+		if(!logger.isErrorFileOpen() || !logger.isLogFileOpen() || !logger.isOutputFileOpen())
+		{
+			std::cout << "Cannot create/open files required for logging\n";
+			return 0;
+		}
+		
+		if(!config.init(configPath / "allowedips4.txt", std::chrono::seconds(5)))
+		{
+			std::cout << "Cannot inicialize config\n";
+			return 0;
+		}
+		ipAuthorizer.init(ioContext);
+		
+		//db::Database database;
+		//db::databaseManager.setDatabase(database);
+		db::databaseManager.setContext(ioContext);
+		
+		if( !fileManager.setWorkingDirectory(dir) )
+		{
+			std::cout << "Working directory of \"" << dir << "\" (" << fs::absolute(fs::path(dir)) << ") dosent exist\n";
+			return 0;
+		}
+		fileManager.setContext(ioContext);
+		
+		if(server.start(port))
+		{
+			std::cout << "TCP Server started on port " << port << '\n';
+		}
+		
+		if(wozekUdpServer.start(port))
+		{
+			std::cout << "UDP Server started on port " << port << '\n';
+		}
+	}
+	catch(std::exception& e)
+	{
+		std::cout << "Exception during setup: " << e.what() << '\n';
+		return 0;
+	}
 
 	std::vector<std::thread> threadPool;
 	threadPool.reserve(numberOfAdditionalThreads);

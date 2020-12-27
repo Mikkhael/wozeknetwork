@@ -11,6 +11,7 @@
 
 #include "utils.hpp"
 
+#include "ThreadedQueues.hpp"
 
 serialib serial;
 
@@ -295,12 +296,70 @@ void testDecode()
 	std::cout << "End\n";
 }
 
+
+void testQueue()
+{
+	{
+		MutexCopyQueue<std::string> q;
+		
+		std::thread t1([&]{
+			std::clog << "S: q1\n";
+			q.push("q1");
+			std::clog << "S: q2\n";
+			q.push("q2");
+			std::this_thread::sleep_for(std::chrono::milliseconds(200));
+			std::clog << "S: q3\n";
+			q.push("q3");
+		});
+		
+		std::thread t2([&]{
+			std::clog << "S: q4\n";
+			q.push("q4");
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			std::clog << "S: q5\n";
+			q.push("q5");
+			std::clog << "S: q6\n";
+			q.push("q6");
+			std::clog << "S: q7\n";
+			q.push("q7");
+		});
+		
+		bool tak = true;
+		
+		std::thread t3([&]{
+			while(tak)
+			{
+				auto r = q.top();
+				if(r)
+				{
+					q.pop();
+					std::clog << "R: " << r.value() << '\n';
+				}
+			}
+		});
+		
+		
+		std::thread t4([&]{
+			char x;
+			std::cin >> x;
+			tak = false;
+		});
+		
+		t4.join();
+		t3.join();
+		t2.join();
+		t1.join();
+	}
+	
+	char x;
+	std::cin >> x;
+	
+	
+}
+
 int main()
 {
-	
-	//testEncodes2();
-	
-	timeEncodes();
+	testQueue();
 	
 }
 

@@ -71,13 +71,13 @@ void ControllerUDPReceiver::handleEchoResponse()
 
 void ControllerUDPReceiver::handleFetchStateResponse()
 {
-	std::cout << "Received State Update\n";
+	//std::cout << "Received State Update\n";
 	data::UdpFetchState::Response response;
 	buffer.loadObjectAt(1, response);
 	
-	std::cout << "1: " << (int)response.values[0] << '\n';
-	std::cout << "2: " << (int)response.values[1] << '\n';
-	std::cout << "3: " << (int)response.values[2] << '\n';
+	//std::cout << "1: " << (int)response.values[0] << '\n';
+	//std::cout << "2: " << (int)response.values[1] << '\n';
+	//std::cout << "3: " << (int)response.values[2] << '\n';
 	
 	associatedStatePtr->rotationState.updateValue(&response.values);
 }

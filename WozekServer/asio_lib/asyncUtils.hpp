@@ -97,7 +97,7 @@ protected:
 	
 	auto sharedFromThis() { 
 		#ifndef RELEASE
-		std::cout << '{' << this->weak_from_this().use_count() << '}';
+		//std::cout << '{' << this->weak_from_this().use_count() << '}';
 		#endif // RELEASE
 	return this->shared_from_this();
 	};

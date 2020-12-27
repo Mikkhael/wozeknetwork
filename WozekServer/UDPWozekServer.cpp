@@ -63,6 +63,8 @@ void WozekUDPReceiver::handleFetchStateRequest()
 		
 		static_assert(sizeof(res->rotation) == sizeof(data::UdpFetchState::Response));
 		
+		log("Sending Update State to ", remoteEndpoint);
+		
 		buffer.saveObjectAt(1, res->rotation);
 		asyncWriteTo(
 			buffer.get(1 + sizeof(res->rotation)),

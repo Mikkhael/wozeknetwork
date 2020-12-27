@@ -7,10 +7,8 @@
 #include <time.h>
 #include <cstdlib>
 #include <vector>
-#include "ControllerSessionClient.hpp"
-#include "ControllerSessionUDP.hpp"
 
-#include "State.hpp"
+#include "App.hpp"
 
 
 void readAll(Device& device)
@@ -34,25 +32,57 @@ void readAll(Device& device)
 	}
 }
 
-void f1(State& state)
+void default_setup(App& app)
 {
-	data::IdType id = 0;
+	app.performDeviceAndNetworkingSetup(4, 9600, "192.168.0.15", "8081", 8081, "Krzek", 1, 5000);
+	//app.performDeviceAndNetworkingSetup(4, 9600, "127.0.0.1", "8081", 8081, "KrzekLocal", 1, 5000);
+}
+
+
+
+bool loadSetupConfigFromArgs(char** argv, App& app)
+{
+	try
+	{
+		const int comPort = stoi( std::string(argv[1]) );
+		const int bdRate  = stoi( std::string(argv[2]) );
+		const int udpPort = stoi( std::string(argv[5]) );
+		const int asioThreads = stoi( std::string(argv[7]) );
+		const int autoFetchStateInterval = stoi( std::string(argv[8]) );
+		
+		app.performDeviceAndNetworkingSetup(comPort, bdRate, argv[3], argv[4], udpPort, argv[6], asioThreads, autoFetchStateInterval);
+	}
+	catch(std::exception& e)
+	{
+		return false;
+	}
 	
-	asio::io_context ioContext;
-	asio::executor_work_guard<decltype(ioContext.get_executor())> work{ioContext.get_executor()};
-	
-	tcp::ControllerSessionClient tcpConnection(ioContext);
-	udp::ControllerUDPServer udpServer(ioContext);
-	udp::ControllerUDPSender udpSender(ioContext, udpServer.getSocket());
-	
-	udp::ControllerUDPReceiver::setAssociatedState(&state);
-	
-	//udpSender.resolveAndConnect("localhost", "8081");
-	udpSender.connect(asioudp::endpoint(asio::ip::make_address_v4("127.0.0.1"), 8081));
-	
-	udpServer.start(0);
-	
-	std::thread asioThread( [&]{ ioContext.run(); } );
+	return true;
+}
+
+
+bool setup(int argc, char** argv, App& app)
+{
+	if(argc == 9)
+	{
+		if(!loadSetupConfigFromArgs(argv, app))
+		{
+			std::cout << "Error while parsing arguments.\n";
+			return false;
+		}
+	}
+	else
+	{
+		std::cout << "Arguments:\n <COM port nr>\n <Boud rate>\n <Server Hostname>\n <Server TCP Port>\n <Server UDP Port>\n <Controller Name>\n <Asio threads (at least 1)>\n <Auto Fetch State Interval (in ms) (default = 5000)>\n";
+		std::cout << "Performing default setup.\n";
+		default_setup(app);
+	}
+	return true;
+}
+
+
+void startManualControl(int argc, char** argv, App& app)
+{
 	
 	try
 	{
@@ -63,16 +93,19 @@ void f1(State& state)
 			std::cout << R"(
 =======
 Operations:
-	1 - Update Rotation
+	1 - Update Rotation Manually
 	2 - Show Rotation
-	3 - Set Rotation to FF and Update
-	4 - Custom Request
 	
-	c - Connect to Server
-	r - Register As Controller Request
+	s - Start Main Loop Manually
+	r - Restart
 	
 	q - Send Fetch State Request
+	w - Enable/Disable Auto Fetch State Request
 	e - Send UDP Echo Request
+	
+	c - Custom RS232 Request
+	
+	x - Exit
 )";
 			
 			std::cin >> op;
@@ -89,95 +122,22 @@ Operations:
 					vals[i] = temp;
 				}
 				
-				state.rotationState.updateValue(vals);				
+				app.state.rotationState.updateValue(vals);				
 				continue;
 			}
 			if(op == '2')
 			{
-				state.rotationState.mutex.lock();
+				app.state.rotationState.mutex.lock();
 				
-				byte encoded[getEncodedLength(sizeof(state.rotationState.value))];
-				encode<4, sizeof(state.rotationState.value)>((byte*)&state.rotationState.value, encoded);
+				byte encoded[getEncodedLength(sizeof(app.state.rotationState.value))];
+				encode<4, sizeof(app.state.rotationState.value)>((byte*)&app.state.rotationState.value, encoded);
 				std::cout << "Raw: ";
-				lookupBytes((byte*)&state.rotationState.value, sizeof(state.rotationState.value));
+				lookupBytes((byte*)&app.state.rotationState.value, sizeof(app.state.rotationState.value));
 				std::cout << "\nEnc: ";
 				lookupBytes(encoded, sizeof(encoded));
 				std::cout << '\n';
 				
-				state.rotationState.mutex.unlock();
-				continue;
-			}
-			if(op == '3')
-			{
-				for(auto i=0u; i<sizeof(state.rotationState.value); i++)
-				{
-					((byte*)&state.rotationState.value)[i] = byte(255);
-				}
-				state.rotationState.updatedFlag.store(true, std::memory_order::memory_order_relaxed);
-				std::cout << "Set to FF and Updated\n";
-				continue;
-			}
-			if(op == '4')
-			{
-				/*
-				std::vector<byte> data;
-				std::cout << "(-1 to end): ";
-				while(true)
-				{
-					int temp;
-					std::cin >> temp;
-					if(temp == -1)
-					{
-						if(data.size() < 1)
-						{
-							continue;
-						}
-						std::memcpy(state.customRequestBuffer, data.data(), data.size());
-					}
-				}
-				*/
-				continue;
-			}
-			if(op == 'c')
-			{
-				std::string hostname, port;
-				//int port;
-				
-				std::cout << "Hostname & port: ";
-				std::cin >> hostname >> port;
-				
-				if(!tcpConnection.resolveAndConnect( hostname, port ))
-				{
-					std::cout << "Failed to connect\n";
-				}
-				else
-				{
-					std::cout << "Connected successfully\n";
-				}
-				
-				continue;
-			}
-			if(op == 'r')
-			{
-				// c localhost 8081 r bajojajo2
-				std::string name;
-				std::cout << "Name: ";
-				std::cin >> name;
-				
-				data::RegisterAsController::RequestHeader request;
-				strcpy(request.name, name.data());
-				
-				tcpConnection.pushCallbackStack([=,&id](CallbackResult::Ptr result){
-					if (result->isCritical()) {
-						std::cout << "Received Register As Controller Critical Error\n";
-					} else {
-						auto valueResult = dynamic_cast< ValueCallbackResult<data::IdType>* >(result.get());
-						std::cout << "Received Register As Controller Response With Id: " << (valueResult->value) << " Status: " << int(valueResult->status) << '\n';
-						id = valueResult->value;
-					}
-				});
-				tcpConnection.registerAsControllerRequest(name);
-				
+				app.state.rotationState.mutex.unlock();
 				continue;
 			}
 			if(op == 'e')
@@ -186,7 +146,7 @@ Operations:
 				std::cout << "Message: ";
 				std::cin >> message;
 				
-				udpSender.pushCallbackStack([](CallbackResult::Ptr result)
+				app.udpSender.pushCallbackStack([](CallbackResult::Ptr result)
 				{
 					if (result->isCritical()) {
 						std::cout << "Critical error occured\n";
@@ -194,23 +154,64 @@ Operations:
 						std::cout << "Callback returned: " << int(result->status) << '\n';
 					}
 				});
-				udpSender.sendEchoMessage(message);
+				app.udpSender.sendEchoMessage(message);
 				
 				continue;
 			}
 			if(op == 'q')
 			{
-				udpSender.pushCallbackStack([](CallbackResult::Ptr result)
+				app.fetchStateUpdate();
+				continue;
+			}
+			if(op == 'w')
+			{
+				app.enableAutoFetchState.store( !app.enableAutoFetchState.load(order_relaxed) , order_relaxed);
+				continue;
+			}
+			if(op == 's')
+			{
+				app.runLoop();
+				continue;
+			}
+			if(op == 'r')
+			{
+				setup(argc, argv, app);
+				continue;
+			}
+			if(op == 'c')
+			{
+				int temp = 0;
+				App::CustomRequest request;
+				
+				std::cout << "Opcode: ";
+				std::cin >> temp;
+				request.opcode = temp;
+				
+				std::cout << "Expected Response Length: ";
+				std::cin >> temp;
+				request.expectedResponseLength = temp;
+				
+				
+				std::cout << "Data (-1 - end): ";
+				while(true)
 				{
-					if (result->isCritical()) {
-						std::cout << "Critical error occured\n";
-					} else {
-						std::cout << "Callback returned: " << int(result->status) << '\n';
+					std::cin >> temp;
+					if(temp < 0)
+					{
+						break;
 					}
-				});
-				udpSender.sendFetchStateRequest(id);
+					request.data.push_back(temp);
+				}
+				
+				
+				app.customRequestsQueue.push(request);
 				
 				continue;
+			}
+			if(op == 'x')
+			{
+				app.terminate();
+				return;
 			}
 		}
 	}
@@ -218,31 +219,35 @@ Operations:
 	{
 		std::cout << "Exception in f1: " << e.what() << '\n';
 	}
-	
-	asioThread.join();
 }
-
-int main()
+int main(int argc, char** argv)
 {
 	srand(time(NULL));
 	rand();
+	
 	try
 	{	
-		State state;
-		Device device(4);
+		asio::io_context ioContext;
+		asio::executor_work_guard<decltype(ioContext.get_executor())> work{ioContext.get_executor()};
 		
-		std::thread controlThread([&](){ f1(state); });
-		std::thread readThread([&](){ readAll(device); });
-		//std::thread updateThread([&](){ sustainConnectionAndUpdate(device, state); });	
+		App app(ioContext);
+		if(!setup(argc, argv, app))
+		{
+			return 0;
+		}
 		
-		sustainConnectionAndUpdate(device, state);
-		controlThread.join();
-		//updateThread.join();
+		startManualControl(argc, argv, app);
+		app.join();
 	}
 	catch(std::exception& e)
 	{
 		std::cout << "Exception in Main: " << e.what() << '\n';
 	}
+	
+	std::string block;
+	std::cin >> block;
+	std::cin >> block;
+	std::cin >> block;
 }
 
 

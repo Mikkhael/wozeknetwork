@@ -62,7 +62,7 @@ protected:
 	
 	virtual void handle_impl()
 	{		
-		std::cout << "UDP: Received " << bytesTransfered << " bytes from " << remoteEndpoint << '\n';
+		//std::cout << "UDP: Received " << bytesTransfered << " bytes from " << remoteEndpoint << '\n';
 		
 		handleDatagram();
 	}

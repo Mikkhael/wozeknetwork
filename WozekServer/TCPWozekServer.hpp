@@ -40,7 +40,10 @@ private:
 	
 public:
 	WozekSession(asio::io_context& ioContext)
-		: BasicSession(ioContext), debugTimer(ioContext)
+		: BasicSession(ioContext)
+		#ifndef RELEASE
+		, debugTimer(ioContext)
+		#endif // RELEASE
 	{
 		//assert(sharedFromThis().get() == this);
 	}

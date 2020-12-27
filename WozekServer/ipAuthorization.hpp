@@ -117,6 +117,9 @@ public:
 	{
 		updateIpv4Timer.emplace(ioContext);
 		
+		std::fstream file(config.allowedIpv4FilePath, std::ios::app);
+		file.close();
+		
 		updateIpv4();
 		startUpdateIpv4Timer();
 		lastUpdatedIpv4 = fs::last_write_time(config.allowedIpv4FilePath);

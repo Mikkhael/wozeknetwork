@@ -40,12 +40,19 @@ public:
 	{
 	}
 	
+	void stopServer()
+	{
+		Error ignored;
+		receiveSocket.cancel(ignored);
+		receiveSocket.shutdown(asioudp::socket::shutdown_both, ignored);
+		receiveSocket.close(ignored);
+		running = false;
+	}
+	
 	bool start(uint16_t port)
 	{
-		if(running)
-		{
-			return false;
-		}
+		stopServer();
+		running = true;
 		
 		Error err;
 		
@@ -68,7 +75,7 @@ public:
 			}
 		}
 		
-		std::cout << "SADASD: " << receiveSocket.local_endpoint(err) << '\n';
+		//std::cout << "SADASD: " << receiveSocket.local_endpoint(err) << '\n';
 		
 		awaitNewDatagram();
 		return true;
