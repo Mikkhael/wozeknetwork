@@ -2,6 +2,12 @@
 
 #include "Imported.hpp"
 
+#ifdef DLL
+
+class Handle;
+
+#endif // DLL
+
 namespace udp
 {
 
@@ -45,6 +51,7 @@ class WozekUDPReceiver : public BasicHandler<WozekUDPReceiver,ArrayBuffer< 512 >
 {
 protected:
 	
+	
 	constexpr static auto BufferSize = 512;	
 	
 	virtual void connectionErrorHandler_impl(const Error& err)
@@ -66,6 +73,12 @@ protected:
 	void handleDatagram();
 	
 public:
+	
+	#ifdef DLL
+	
+	static Handle* associatedHandle;
+	
+	#endif // DLL
 	
 	WozekUDPReceiver(asio::io_context& ioContext, Socket& socket)
 		: BasicHandler(ioContext, socket)

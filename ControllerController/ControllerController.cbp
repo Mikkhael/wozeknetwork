@@ -54,6 +54,7 @@
 			<Add library="Ws2_32" />
 			<Add library="wsock32" />
 		</Linker>
+		<Unit filename="App.hpp" />
 		<Unit filename="ControllerSessionClient.cpp" />
 		<Unit filename="ControllerSessionClient.hpp" />
 		<Unit filename="ControllerSessionUDP.cpp" />
@@ -62,6 +63,7 @@
 		<Unit filename="Imported.hpp" />
 		<Unit filename="RS232.h" />
 		<Unit filename="State.hpp" />
+		<Unit filename="ThreadedQueues.hpp" />
 		<Unit filename="main.cpp">
 			<Option target="Debug" />
 			<Option target="Release" />

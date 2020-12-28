@@ -1,8 +1,13 @@
 #include "ClientUDP.hpp"
 
+#ifdef DLL
+
+#include "dllexports.h"
+
+#endif // DLL
+
 namespace udp
 {
-
 
 
 void WozekUDPSender::sendEchoMessage(const std::string& message)
@@ -23,7 +28,7 @@ void WozekUDPSender::sendEchoMessage(const std::string& message)
 
 void WozekUDPSender::sendUdpStateUpdate(const data::RotationType rotation[3], const data::IdType& id)
 {
-	std::cout << "Sending rotation " << rotation[0] << ' ' << rotation[1] << ' ' << rotation[2] << " for id " << id << '\n';
+	std::cout << "Sending rotation " << (int)rotation[0] << ' ' << (int)rotation[1] << ' ' << (int)rotation[2] << " for id " << id << '\n';
 	
 	int offset = 0;
 	offset = buffer.saveObjectAt(offset, char(data::UdpUpdateState::request_id));
@@ -67,9 +72,28 @@ void WozekUDPReceiver::handleEchoResponse()
 	std::string message;
 	message.resize(bytesTransfered - 1);
 	buffer.loadBytesAt(1, message.data(), bytesTransfered - 1);
+	
+	
 	std::cout << "Received Echo Message: " << message << '\n';
+	
+	
+	
+	#ifdef DLL
+	
+	associatedHandle->udpEchoCallback(message.data(), message.size());
+	
+	#endif // DLL
 }
 
+
+
+
+
+#ifdef DLL
+
+Handle* WozekUDPReceiver::associatedHandle;
+
+#endif // DLL
 
 
 }
