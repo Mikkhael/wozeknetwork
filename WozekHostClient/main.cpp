@@ -19,7 +19,20 @@ int main()
 	commander.start();
 	
 	
-	std::thread t([&]{ioContext.run(); std::cout << "Additional thread ended\n";});
+	std::thread t([&]{
+		
+		try
+		{
+			ioContext.run();
+		}
+		catch(std::exception& e)
+		{
+			std::cout << "!!!!! Exception: !!!!!!\n" << e.what() << '\n';
+		}
+		std::cout << "Additional thread ended\n";
+		
+	});
+	
 	try
 	{
 		ioContext.run();
@@ -29,7 +42,9 @@ int main()
 		std::cout << "!!!!! Exception: !!!!!!\n" << e.what() << '\n';
 	}
 	
-	
-	
 	std::cout << "Main thread ended\n";
+	
+	std::cin.get();
+	std::cin.get();
+	std::cin.get();
 }

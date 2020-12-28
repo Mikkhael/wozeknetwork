@@ -6,6 +6,8 @@
 #include <optional>
 #include <typeinfo>
 #include <atomic>
+#include <mutex>
+#include <shared_mutex>
 
 #include "Datagrams.hpp"
 
@@ -34,28 +36,42 @@ class TableBase
 	
 public:
 	
-	std::array<std::unique_ptr<RecordT>, IdSlots + 1 > records;
+	struct MutexedRecord
+	{
+		std::unique_ptr<RecordT> data;
+		std::shared_mutex shared_mutex;
+	};
 	
-	RecordT* getRecordById(const IdT id)
+	std::array<MutexedRecord, IdSlots + 1 > records;
+	
+	MutexedRecord& getMutexedRecordById(const IdT id)
 	{
 		assert(id < records.size() && id != 0);
-		auto& r = records[id];
-		return r.get();
+		return records[id];
 	}
 	
 	auto createNewRecord()
 	{
-		std::pair< RecordT* , IdT > res;
-		res.second = getNextIndex();
-		records[res.second].reset(new RecordT);
-		res.first = records[res.second].get();
-		return res;
+		const auto id = getNextIndex();
+		records[id].data.reset(new RecordT);
+		return id;
 	}
 	
 	template<typename Callback>
-	void postOnStrand(Callback&& callback)
+	auto accessSafeRead(const IdT id, Callback&& callback)
 	{
-		asio::post( strand, callback );
+		static_assert(std::is_invocable_v<Callback, const RecordT*>);
+		
+		std::shared_lock lock{ getMutexedRecordById(id).shared_mutex };
+		return callback(getMutexedRecordById(id).data.get());
+	}
+	template<typename Callback>
+	auto accessSafeWrite(const IdT id, Callback&& callback)
+	{
+		static_assert(std::is_invocable_v<Callback, RecordT*>);
+		
+		std::unique_lock lock{ getMutexedRecordById(id).shared_mutex };
+		return callback(getMutexedRecordById(id).data.get());
 	}
 	
 	TableBase(asio::io_context& ioContext)

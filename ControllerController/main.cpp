@@ -34,7 +34,11 @@ void readAll(Device& device)
 
 void default_setup(App& app)
 {
-	app.performDeviceAndNetworkingSetup(4, 9600, "192.168.0.15", "8081", 8081, "Krzek", 1, 5000);
+	std::string address;
+	std::cout << "Server Address: ";
+	std::cin >> address;
+	
+	app.performDeviceAndNetworkingSetup(4, 9600, address, "8081", 8081, "Krzek", 1, 5000);
 	//app.performDeviceAndNetworkingSetup(4, 9600, "127.0.0.1", "8081", 8081, "KrzekLocal", 1, 5000);
 }
 

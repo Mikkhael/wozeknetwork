@@ -21,7 +21,7 @@ int main(int argc, char** argv)
 	#else
 	
 	short port = 8081;
-	short threads = 5a;
+	short threads = 5;
 	std::string dir = "ServerFiles";
 	
 	#endif // RELEASE
@@ -151,11 +151,13 @@ int main(int argc, char** argv)
 	
 	std::cout << "Main thread exited\n";
 	
-	#ifndef RELEASE
+	//#ifndef RELEASE
 	
 	std::cin.get();
+	std::cin.get();
+	std::cin.get();
 	
-	#endif // RELEASE
+	//#endif // RELEASE
 }
 
 #endif // TESTRUN

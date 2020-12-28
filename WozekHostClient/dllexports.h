@@ -7,9 +7,6 @@
 
 #define EXPORT extern "C" __declspec(dllexport) __stdcall
 
-static __stdcall void NOOP_echo (const char*, const uint32_t) {}
-static __stdcall void NOOP_error() {}
-
 struct Handle;
 
 /// DOCS
@@ -36,7 +33,7 @@ EXPORT void stop(Handle* handle);	 // Stops the polling and execution of all han
 
 // Bellow functions require a callback to be passed to them. Below functions and callbacks will be executed only in a thread with either pollOne() or run()
 // Callbacks need to be set only once
-// Sends an TCP/UDP Echo request. Callback will pass the pointer to the received response string and it's length via the parameter. If request failed, nullpointer will be passed. Ueed for testing.
+// Sends an TCP/UDP Echo request. Callback will pass the pointer to the received response string and it's length via the parameter. If request failed, null-pointer will be passed. Ueed for testing.
 EXPORT void setTcpEchoCallback( Handle* handle, Handle::EchoCallback callback);
 EXPORT void sendTcpEcho( Handle* handle, const char* message, const uint32_t messageLength);
 
@@ -53,6 +50,9 @@ static_assert(std::is_same_v<  data::IdType,       uint32_t  >);
 static_assert(std::is_same_v<  data::RotationType, uint8_t   >);
 
 /// DOCS END
+
+static __stdcall void NOOP_echo (const char*, const uint32_t) {}
+static __stdcall void NOOP_error() {}
 
 struct Handle
 {

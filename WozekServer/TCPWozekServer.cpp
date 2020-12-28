@@ -167,28 +167,19 @@ void WozekSession::handleRegisterAsControllerRequest(const data::RegisterAsContr
 		log("Name Accepted");
 		
 		auto& table = db::databaseManager.getDatabase().controllerTable;
-		table.postOnStrand([this, &table, me = sharedFromThis()]{
-			
-			data::RegisterAsController::ResponseHeader response;
-			response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Accepted;
-			
-			auto result = table.createNewRecord();
-			response.id = result.second;
-							
-			log("New record id: ", response.id);
-			
-			
-			result.first->endpoint = asioudp::endpoint(remoteEndpoint.address(), 0);
-			
-			// TESTY
-			result.first->rotation.X = 0.4;
-			result.first->rotation.Y = 0;
-			result.first->rotation.Z = 1;
-			// KONIEC TESTÓW
-			
-			
-			finalizeRegisterAsControllerRequest(response);
+		
+		data::RegisterAsController::ResponseHeader response;
+		response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Accepted;
+		
+		auto id = table.createNewRecord();
+		response.id = id;
+		log("New record id: ", response.id);
+		
+		table.accessSafeWrite(id, [this](auto record){
+			record->endpoint = asioudp::endpoint(remoteEndpoint.address(), 0); // TODO set port
 		});
+		
+		finalizeRegisterAsControllerRequest(response);
 		
 		return;
 	}

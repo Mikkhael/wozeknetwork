@@ -48,31 +48,31 @@ void WozekUDPReceiver::handleFetchStateRequest()
 	
 	buffer.saveObject(char(data::UdpFetchState::response_id));
 	
-	table.postOnStrand([this, id, &table, me = sharedFromThis()]{
-		auto res = table.getRecordById(id);
-		if(!res)
+	table.accessSafeRead(id, [this, id](auto record){
+		if(!record)
 		{
 			log("Id ", id, " not found.");
 			return;
 		}
-		if(res->endpoint.address() != remoteEndpoint.address())
+		
+		if(record->endpoint.address() != remoteEndpoint.address()) // TODO check port
 		{
-			log("Invalid endpoint. Expected: ", res->endpoint, ", received from: ", remoteEndpoint);
+			log("Invalid endpoint. Expected: ", record->endpoint, ", received from: ", remoteEndpoint);
 			return;
 		}
 		
-		static_assert(sizeof(res->rotation) == sizeof(data::UdpFetchState::Response));
-		
-		log("Sending Update State to ", remoteEndpoint);
-		
-		buffer.saveObjectAt(1, res->rotation);
-		asyncWriteTo(
-			buffer.get(1 + sizeof(res->rotation)),
-			remoteEndpoint,
-			[]{},
-			&WozekUDPReceiver::errorAbort
-		);
+		buffer.saveObjectAt(1, record->rotation);
+		static_assert(sizeof(record->rotation) == sizeof(data::UdpFetchState::Response));
 	});
+	
+	log("Sending Update State to ", remoteEndpoint);
+	
+	asyncWriteTo(
+		buffer.get(1 + sizeof(data::UdpFetchState::Response)),
+		remoteEndpoint,
+		[]{},
+		&WozekUDPReceiver::errorAbort
+	);
 	
 	return;
 }
@@ -93,18 +93,21 @@ void WozekUDPReceiver::handleUpdateStateRequest()
 {
 	log("Handling Update State Request");
 	auto& table = db::databaseManager.getDatabase().controllerTable;
-	table.postOnStrand([&table, me = sharedFromThis()]{
-		data::IdType id;
-		me->buffer.loadObjectAt(1, id);
-		auto rec = table.getRecordById(id);
-		if(!rec)
+	
+	data::IdType id;
+	buffer.loadObjectAt(1, id);
+	
+	table.accessSafeWrite(id, [this, &id](auto record){
+		if(!record)
 		{
-			me->log("Invalid id");
+			log("Invalid id");
 			return;
 		}
+		
 		// TODO authorization
-		me->buffer.loadBytesAt(1 + sizeof(id), (char*)&rec->rotation, sizeof(rec->rotation));
-		me->log("Updated state of ", id, " to ", (int)rec->rotation.X , ' ', (int)rec->rotation.Y , ' ', (int)rec->rotation.Z);
+		
+		buffer.loadBytesAt(1 + sizeof(id), (char*)&record->rotation, sizeof(record->rotation));
+		log("Updated state of ", id, " to ", (int)record->rotation.X , ' ', (int)record->rotation.Y , ' ', (int)record->rotation.Z);
 	});
 }
 
