@@ -36,6 +36,7 @@ public:
 	
 	
 	void performEchoRequest(const std::string& message);
+	void performLookupIdForNameRequest(const std::string& name);
 	void sendHeartbeat();
 
 protected:
@@ -55,6 +56,8 @@ protected:
 	void receiveEchoResponsePart();
 	void handleEchoResponsePart(const char c);
 	void finilizeEcho(std::string& receiveedMessage);
+	
+	void receiveLookupIdFromNameResponse(const data::LookupIdForName::Response& response);
 	
 	bool errorCritical(const Error& err) {
 		if(err == asio::error::eof){

@@ -32,6 +32,7 @@ public:
 		MenuMap.insert({ "4", {"Set UDP Endpoint", &Commander::setUdpEndpoint} });
 		MenuMap.insert({ "5", {"Send UDP Echo Message", &Commander::sendUdpEchoMessage} });
 		MenuMap.insert({ "6", {"Send UDP State Update", &Commander::sendUdpStateUpdate} });
+		MenuMap.insert({ "7", {"Send TCP Lookup Id For Name", &Commander::sendTcpLookupIdForName} });
 		
 		udpServer.start(0);
 		udpSender.connect(asioudp::endpoint(asio::ip::make_address_v4("127.0.0.1"), 8081));
@@ -111,6 +112,22 @@ public:
 			enterMenuAsync();
 		});
 		tcpConnection.performEchoRequest(message);
+	}
+	void sendTcpLookupIdForName()
+	{
+		std::cout << "Send TCP Lookup Id For Name\nEnter Name:";
+		std::string name;
+		std::cin >> name;
+		tcpConnection.pushCallbackStack([=](CallbackResult::Ptr result){
+			if (result->isCritical()) {
+				std::cout << "Critical error occured\n";
+			} else {
+				auto valueResult = dynamic_cast< ValueCallbackResult<decltype(data::LookupIdForName::Response::id)>* >(result.get());
+				std::cout << "Received Id: " << valueResult->value << '\n';
+			}
+			enterMenuAsync();
+		});
+		tcpConnection.performLookupIdFromNameRequest(name);
 	}
 	void setUdpEndpoint()
 	{

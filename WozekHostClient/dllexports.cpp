@@ -123,6 +123,27 @@ EXPORT void sendUdpUpdateState( Handle* handle, data::IdType id, data::RotationT
 	handle->udpSender.sendUdpStateUpdate(rotation, id);
 }
 
+EXPORT void setTcpLookupIdForNameCallback( Handle* handle, Handle::LookupCallback callback )
+{
+	handle->tcpLookupIdForNameCallback = callback;
+}
+EXPORT void sendTcpLookupIdForName( Handle* handle, const char* name, const uint32_t nameLength)
+{
+	std::string s;
+	s.resize(nameLength);
+	std::memcpy(s.data(), name, nameLength);
+	
+	handle->tcpConnection.pushCallbackStack([handle](CallbackResult::Ptr result){
+		if (result->status != CallbackResult::Status::Good) {
+			handle->tcpLookupIdForNameCallback(-1);
+		} else {
+			auto valueResult = dynamic_cast< ValueCallbackResult<uint32_t>* >(result.get());
+			handle->tcpLookupIdForNameCallback(valueResult->value);
+		}
+	});
+	handle->tcpConnection.performLookupIdForNameRequest(name);
+}
+
 
 
 /*

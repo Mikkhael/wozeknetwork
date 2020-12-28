@@ -18,6 +18,7 @@ public:
 	asio::io_context& ioContext;
 	
 	ControllerTable controllerTable;
+	ControllerNameIndex controllerNameIndex;
 	
 	Database(asio::io_context& ioContext_)
 		: ioContext(ioContext_), controllerTable(ioContext_)

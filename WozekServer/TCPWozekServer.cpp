@@ -50,6 +50,11 @@ void WozekSession::handleReceivedRequestId(char id)
 			receiveRegisterAsControllerRequest();
 			break;
 		}
+		case data::LookupIdForName::request_id:
+		{
+			receiveLookupIdForNameRequest();
+			break;
+		}
 		/*
 		case data::RegisterNewHost::Code : // Register as new host
 		{
@@ -138,6 +143,62 @@ void WozekSession::sendEchoResponse()
 	);
 }
 
+/// Name lookup ///
+
+
+void WozekSession::receiveLookupIdForNameRequest()
+{
+	log("Receiving Id Lookup Request");
+	asyncReadObjects<data::LookupIdForName::Request>(
+		&WozekSession::handleLookupIdForNameRequest,
+		&WozekSession::errorAbort
+	);
+}
+
+void WozekSession::handleLookupIdForNameRequest(const data::LookupIdForName::Request& request)
+{
+	if(request.nameLength <= 0)
+	{
+		logError(Logger::Error::TcpInvalidNameSizeForLookup , "Invalid name size: ", request.nameLength);
+		shutdownSession();
+		return;
+	}
+	
+	log("Receiving name of length: ", request.nameLength);
+	asyncRead(
+		buffer.get(request.nameLength),
+		[=]{handleLookupIdForNameRequestData(request.nameLength);},
+		&WozekSession::errorAbort
+	);
+}
+
+void WozekSession::handleLookupIdForNameRequestData(const size_t nameLength)
+{
+	std::string name(nameLength, 0);
+	buffer.loadBytes(name.data(), nameLength);
+	
+	log("Lookung up name: ", name);
+	
+	auto& index = db::databaseManager.getDatabase().controllerNameIndex;
+	const auto res = index.get(name);
+	
+	data::LookupIdForName::Response response;
+	response.id = res;
+	
+	finalizeLookupIdForNameRequest(response);
+}
+
+void WozekSession::finalizeLookupIdForNameRequest(const data::LookupIdForName::Response& response)
+{
+	log("Responding with looked up id: ", response.id);
+	asyncWriteObjects(
+		&WozekSession::awaitRequest,
+		&WozekSession::errorAbort,
+		response
+	);
+}
+
+
 /// Controller Controller ///
 
 void WozekSession::receiveRegisterAsControllerRequest()
@@ -166,16 +227,36 @@ void WozekSession::handleRegisterAsControllerRequest(const data::RegisterAsContr
 	{
 		log("Name Accepted");
 		
+		std::string name;
+		name.resize(nameSize);
+		std::memcpy(name.data(), request.name, nameSize);
+		
 		auto& table = db::databaseManager.getDatabase().controllerTable;
+		auto& index = db::databaseManager.getDatabase().controllerNameIndex;
 		
 		data::RegisterAsController::ResponseHeader response;
 		response.resultCode = data::RegisterAsController::ResponseHeader::ResultCode::Accepted;
 		
-		auto id = table.createNewRecord();
-		response.id = id;
-		log("New record id: ", response.id);
 		
-		table.accessSafeWrite(id, [this](auto record){
+		// TODO could be faster
+		if( (response.id = index.get(name)) )
+		{
+			log("Name already existed.");
+		}
+		else
+		{
+			response.id = table.createNewRecord();
+			index.set(response.id, name);
+			
+			table.accessSafeWrite(response.id, [&name](auto record){
+				record->name = name;
+			});
+		}
+		
+		
+		log("Controller id: ", response.id);
+		
+		table.accessSafeWrite(response.id, [this](auto record){
 			record->endpoint = asioudp::endpoint(remoteEndpoint.address(), 0); // TODO set port
 		});
 		

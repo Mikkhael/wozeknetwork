@@ -7,7 +7,39 @@
 
 #define EXPORT extern "C" __declspec(dllexport) __stdcall
 
-struct Handle;
+
+static __stdcall void NOOP_echo   (const char*, const uint32_t) {}
+static __stdcall void NOOP_error  () {}
+static __stdcall void NOOP_lookup (const int32_t) {}
+
+struct Handle
+{
+	asio::io_context ioContext;
+	
+	tcp::WozekSessionClient tcpConnection;
+	udp::WozekUDPServer udpServer;
+	udp::WozekUDPSender udpSender;
+	
+	using EchoCallback   = decltype(&NOOP_echo);
+	using ErrorCallback  = decltype(&NOOP_error);
+	using LookupCallback = decltype(&NOOP_lookup);
+	
+	EchoCallback  	tcpEchoCallback;
+	EchoCallback  	udpEchoCallback;
+	ErrorCallback 	udpUpdateStateErrorCallback;
+	LookupCallback 	tcpLookupIdForNameCallback;
+	
+	asio::executor_work_guard<asio::io_context::executor_type> work;
+	
+	Handle()
+		: ioContext(), tcpConnection(this->ioContext), udpServer(this->ioContext), udpSender(this->ioContext, udpServer.getSocket()),
+			tcpEchoCallback(&NOOP_echo), udpEchoCallback(&NOOP_echo), udpUpdateStateErrorCallback(&NOOP_error), tcpLookupIdForNameCallback(&NOOP_lookup),
+			work(ioContext.get_executor())
+	{
+		AsioAsync::setGlobalAsioContext(ioContext);
+		udp::WozekUDPReceiver::associatedHandle = this;
+	}
+};
 
 /// DOCS
 
@@ -49,37 +81,13 @@ EXPORT void sendUdpUpdateState( Handle* handle, data::IdType id, data::RotationT
 static_assert(std::is_same_v<  data::IdType,       uint32_t  >);
 static_assert(std::is_same_v<  data::RotationType, uint8_t   >);
 
+// Sends TCP name lookup for given id
+// Callback is executed with argument: -1 - error, 0 - name dosen't exist, else - result id
+EXPORT void setTcpLookupIdForNameCallback( Handle* handle, Handle::LookupCallback callback);
+EXPORT void sendTcpLookupIdForName( Handle* handle, const char* name, const uint32_t nameLength);
+
+
 /// DOCS END
-
-static __stdcall void NOOP_echo (const char*, const uint32_t) {}
-static __stdcall void NOOP_error() {}
-
-struct Handle
-{
-	asio::io_context ioContext;
-	
-	tcp::WozekSessionClient tcpConnection;
-	udp::WozekUDPServer udpServer;
-	udp::WozekUDPSender udpSender;
-	
-	using EchoCallback  = decltype(&NOOP_echo);
-	using ErrorCallback = decltype(&NOOP_error);
-	
-	EchoCallback  tcpEchoCallback;
-	EchoCallback  udpEchoCallback;
-	ErrorCallback udpUpdateStateErrorCallback;
-	
-	asio::executor_work_guard<asio::io_context::executor_type> work;
-	
-	Handle()
-		: ioContext(), tcpConnection(this->ioContext), udpServer(this->ioContext), udpSender(this->ioContext, udpServer.getSocket()),
-			tcpEchoCallback(&NOOP_echo), udpEchoCallback(&NOOP_echo), udpUpdateStateErrorCallback(&NOOP_error),
-			work(ioContext.get_executor())
-	{
-		AsioAsync::setGlobalAsioContext(ioContext);
-		udp::WozekUDPReceiver::associatedHandle = this;
-	}
-};
 
 
 #endif // DLL

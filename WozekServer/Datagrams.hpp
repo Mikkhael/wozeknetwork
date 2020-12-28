@@ -81,6 +81,26 @@ struct EchoRequest
 	// char* - null terminated string of any length up to some MAX length
 };
 
+
+namespace LookupIdForName
+{
+	constexpr static char request_id = 0x20;
+	
+	struct Request
+	{
+		uint32_t nameLength;
+		// string of given length with name
+	};
+	
+	struct Response
+	{
+		IdType id;
+	};
+}
+
+// UDP
+
+
 struct UdpFetchState
 {
 	constexpr static char request_id = 0x60;

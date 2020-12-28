@@ -9,8 +9,9 @@ namespace test_dll
     class WozekClient
     {
 
-        public delegate void EchoCallbackDelegate (IntPtr data, UInt32 size);
-        public delegate void ErrorCallbackDelegate();
+        public delegate void EchoCallbackDelegate  	(IntPtr data, UInt32 size);
+        public delegate void ErrorCallbackDelegate 	();
+        public delegate void LookupCallbackDelegate	(Int32 id);
 
         // Available functions: 
 
@@ -73,5 +74,14 @@ namespace test_dll
 
         [DllImport("WozekHostClient.dll", CallingConvention = CallingConvention.StdCall)]
         public static extern void sendUdpUpdateState(IntPtr handle, UInt32 id, byte r1, byte r2, byte r3);
+		
+		
+		// Sends TCP name lookup for given id
+		// Callback is executed with argument: -1 - error, 0 - name dosen't exist, else - result id
+        [DllImport("WozekHostClient.dll", CallingConvention = CallingConvention.StdCall)]
+		public static extern void setTcpLookupIdForNameCallback( IntPtr handle, IntPtr callback);
+		
+        [DllImport("WozekHostClient.dll", CallingConvention = CallingConvention.StdCall)]
+		public static extern void sendTcpLookupIdForName( IntPtr handle, IntPtr name, UInt32 nameLength);
     }
 }

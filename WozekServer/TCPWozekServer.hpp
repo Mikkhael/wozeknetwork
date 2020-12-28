@@ -25,7 +25,7 @@ class WozekSession
 {
 public:
 	
-	enum class Type {None, Host, Controller};
+	//enum class Type {None, Host, Controller};
 	
 private:
 	
@@ -55,8 +55,8 @@ public:
 	
 	/// Type and Database
 	
-	Type type = Type::None;
-	db::IdType id = 0;
+	//Type type = Type::None;
+	//db::IdType id = 0;
 	
 private:
 	
@@ -65,10 +65,7 @@ private:
 	std::string getPrefix() // TODO: add timestamp
 	{
 		std::stringstream ss;
-		ss << "[ " << remoteEndpoint << ' ';
-		if(type != Type::None)
-			ss << (type == Type::Host ? 'H' : 'C') << id << ' ';
-		ss << "] ";
+		ss << "[ " << remoteEndpoint << " ] ";
 		return ss.str();
 	}
 	
@@ -109,7 +106,6 @@ private:
 	void abortEchoRequest();
 	void sendEchoResponse();
 	
-	
 		/// File ///
 	
 	static constexpr size_t BigBUfferDefaultSize = 1024 * 1024 * 16;
@@ -122,6 +118,13 @@ private:
 	void handleSegmentFileData(const size_t length);
 	void finalizeSegmentFileReceive();
 	
+	
+		/// Name lookup ///
+	
+	void receiveLookupIdForNameRequest();
+	void handleLookupIdForNameRequest(const data::LookupIdForName::Request& request);
+	void handleLookupIdForNameRequestData(const size_t nameLength);
+	void finalizeLookupIdForNameRequest(const data::LookupIdForName::Response& response);
 	
 		/// Controller ///
 		

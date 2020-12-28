@@ -67,6 +67,42 @@ void WozekSessionClient::finilizeEcho(std::string& receivedMessage)
 	returnCallbackStack(std::move(result_base));
 }
 
+
+
+void WozekSessionClient::performLookupIdForNameRequest(const std::string& name)
+{
+	Error err;
+	
+	const char requestId = data::LookupIdForName::request_id;
+	
+	data::LookupIdForName::Request request;
+	request.nameLength = name.size();
+	
+	asio::write(getSocket(), asio::buffer( &requestId , 1 ), err);
+	if(err) { errorCritical(err); return; }
+	
+	asio::write(getSocket(), asio::buffer( &request , sizeof(request) ), err);
+	if(err) { errorCritical(err); return; }
+	
+	asio::write(getSocket(), asio::buffer( name.data() , name.size() ), err);
+	if(err) { errorCritical(err); return; }
+	
+	asyncReadObjects<data::LookupIdForName::Response>(
+		&WozekSessionClient::receiveLookupIdFromNameResponse,
+		&WozekSessionClient::errorCritical
+	);
+	
+}
+
+void WozekSessionClient::receiveLookupIdFromNameResponse(const data::LookupIdForName::Response& response)
+{
+	auto result = new ValueCallbackResult<decltype(response.id)>;
+	result->value = response.id;
+	
+	auto result_base = std::unique_ptr<CallbackResult>(result);
+	returnCallbackStack(std::move(result_base));
+}
+
 /// File ///
 
 void WozekSessionClient::startSegmentedFileSend(const fs::path sourcePath, const size_t fileSize)

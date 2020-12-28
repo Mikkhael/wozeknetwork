@@ -20,7 +20,7 @@ using IdType = data::IdType;
 template <int IdSlots, typename RecordT, typename IdT = IdType>
 class TableBase
 {
-	static_assert(std::is_trivially_destructible_v<RecordT>);
+	//static_assert(std::is_trivially_destructible_v<RecordT>);
 	
 	asio::io_context::strand strand;
 	
@@ -84,6 +84,8 @@ class IndexBase
 {
 	std::optional<asio::io_context::strand> strand;
 	
+	std::shared_mutex shared_mutex;
+	
 	std::unordered_map<IndexedValueT, IdT> indexMap;
 	
 public:
@@ -91,12 +93,6 @@ public:
 	void setContext(asio::io_context& context) { strand.emplace(context); }
 	bool hasContext() { return strand.has_value(); }
 	auto& getStrand() { return strand.value(); }
-	
-	template<typename Callback>
-	void postOnStrand(Callback&& callback)
-	{
-		asio::post( strand.value(), callback );
-	}
 	
 	template<typename Callback>
 	void getSafeCallback(const IndexedValueT& value, Callback&& callback)
@@ -109,6 +105,29 @@ public:
 				}
 				callback(0);
 			} );
+	}
+	
+	IdT get(const IndexedValueT& value)
+	{
+		std::shared_lock lock{shared_mutex};
+		auto it = indexMap.find(value);
+		if(it != indexMap.end())
+		{
+			return it->second;
+		}
+		return 0;
+	}
+	
+	bool has(const IndexedValueT& value)
+	{
+		std::shared_lock lock{shared_mutex};
+		return indexMap.find(value) != indexMap.end();
+	}
+	
+	void set(const IdT id, const IndexedValueT& value)
+	{
+		std::unique_lock lock{shared_mutex};
+		indexMap[value] = id;
 	}
 	
 	IndexBase() {};
