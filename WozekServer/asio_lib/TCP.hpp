@@ -204,9 +204,9 @@ protected:
 						[=]{
 							auto t = std::tuple<Ts...>();
 							std::apply([=](auto&... args){buffer.loadMultiple(args...);}, t);
-							std::apply([=, me = this->sharedFromThis(), &successHandler](auto&... args)
+							std::apply([me = this->sharedFromThis(), successHandler](auto&... args)
 											{
-												this->execute(successHandler, args...);
+												me->execute(successHandler, args...);
 											}, t);
 						},
 						std::forward<ErrorHandler>(errorHandler),
