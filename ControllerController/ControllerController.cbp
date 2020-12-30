@@ -61,7 +61,6 @@
 		<Unit filename="ControllerSessionUDP.hpp" />
 		<Unit filename="Device.hpp" />
 		<Unit filename="Imported.hpp" />
-		<Unit filename="RS232.h" />
 		<Unit filename="State.hpp" />
 		<Unit filename="ThreadedQueues.hpp" />
 		<Unit filename="main.cpp">

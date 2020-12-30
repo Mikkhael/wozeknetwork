@@ -166,8 +166,8 @@ namespace RegisterAsController
 		
 		enum ResultCode : char {
 			Accepted = 0,
-			InUse = 0,
-			Invalid = 0
+			Invalid = 1,
+			InUse = 2,
 		};
 		
 		IdType id;

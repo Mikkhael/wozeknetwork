@@ -103,11 +103,13 @@ Operations:
 	s - Start Main Loop Manually
 	r - Restart
 	
+	p - Send random 10 non-header bytes
 	q - Send Fetch State Request
 	w - Enable/Disable Auto Fetch State Request
 	e - Send UDP Echo Request
 	
-	c - Custom RS232 Request
+	u - Custom Rotation Request
+	c - Custom Encoded RS232 Request
 	
 	x - Exit
 )";
@@ -175,6 +177,85 @@ Operations:
 			if(op == 's')
 			{
 				app.runLoop();
+				continue;
+			}
+			if(op == 'p')
+			{
+				byte data[10];
+				for(int i = 0 ; i < 10; i++)
+				{
+					data[i] = (rand()%128);
+				}
+				int r = app.device.postRawDataAndAwaitResponse(data, 10, 100, 500);
+				std::cout << "\nR (" << r << "): ";
+				lookupBytes(app.device.readBuffer, r);
+				continue;
+			}
+			if(op == '[')
+			{
+				byte data[1000];
+				for(int i = 0 ; i < 1000; i+=2)
+				{
+					data[i] = 0xC0;
+					data[i+1] = 0x00;
+				}
+				int r = app.device.postRawDataAndAwaitResponse(data, 1000, 510, 500);
+				std::cout << "\nR (" << r << "): ";
+				lookupBytes(app.device.readBuffer, r);
+				continue;
+			}
+			if(op == ']')
+			{
+				byte data[500 * 6];
+				byte dd[] = {30, 30, 30};
+				byte dd2[] = {0};
+				for(int i = 0 ; i < 500; i++)
+				{
+					encode(5, 3, dd, data + i*6);
+					encode(4, 1, dd2, data + i*6+4);
+				}
+				int r = app.device.postRawDataAndAwaitResponse(data, sizeof(data), 510, 5000);
+				std::cout << "\nR (" << r << "): ";
+				lookupBytes(app.device.readBuffer, r);
+				continue;
+			}
+			if(op == '.')
+			{
+				byte data[256 * 2];
+				byte d;
+				for(int i = 0 ; i < 256; i++)
+				{
+					d = i;
+					encode(4, 1, &d, data + i*2);
+				}
+				int r = app.device.postRawDataAndAwaitResponse(data, sizeof(data), 510, 5000);
+				std::cout << "\nR (" << r << "): ";
+				lookupBytes(app.device.readBuffer, r);
+				continue;
+			}
+			if(op == ',')
+			{
+				byte data[]{30, 30, 30};
+				TIME(1);
+				int r = app.device.postEncodedRequestAndAwaitResponse<5, sizeof(data)>(data, 1);
+				TIME(2);
+				std::cout << "\nR (" << r << "): ";
+				lookupBytes(app.device.readBuffer, r);
+				std::cout << "\n Time: " << MEASURE(1, 2) << '\n';
+				continue;
+			}
+			if(op == 'u')
+			{
+				byte data[7];
+				for(auto& a : data)
+				{
+					int temp;
+					std::cin >> temp;
+					a = temp;
+				}
+				std::cout << "Sending: ";
+				lookupBytes(data, sizeof(data));
+				app.device.postEncodedRequest<6, sizeof(data)>(data);
 				continue;
 			}
 			if(op == 'r')

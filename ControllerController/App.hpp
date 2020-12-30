@@ -227,9 +227,10 @@ public:
 	
 };
 
-
 void App::loop()
-{
+{	
+	std::this_thread::sleep_for(std::chrono::microseconds(500));
+	
 	if(checkAndUpdateSingleStateComponent(state.rotationState) == 1)
 	{
 		log("Updated Rotation State");

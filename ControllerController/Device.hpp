@@ -170,9 +170,25 @@ public:
 	byte writeBuffer[WriteBufferSize] {};
 	int readBytes = 0;
 	
-	bool postRawData(const void* data, const int length)
+	bool postRawData(const byte* data, const int length)
 	{
 		return serialPort.writeBytes(data, length) > 0;
+	}
+	int postRawDataAndAwaitResponse(const byte* data, const int length, const int expectedResponseLength, const int timeout = DefaultTimeout)
+	{
+		flush();
+		lookupBytes(data, length);
+		int res = serialPort.writeBytes(data,length);
+		if(res < 0)
+		{
+			return -1;
+		}
+		res = serialPort.readBytes(readBuffer, expectedResponseLength, timeout);
+		if(res < 0)
+		{
+			return -2;
+		}
+		return res;
 	}
 	
 	template <int opcode, int length> 
